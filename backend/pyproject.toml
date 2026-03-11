@@ -1,0 +1,14 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "fastapi>=0.127.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.5",
+    "requests>=2.32.5",
+    "uvicorn>=0.40.0",
+]
