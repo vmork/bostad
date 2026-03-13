@@ -145,3 +145,121 @@ export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeo
 
 
 
+/**
+ * @summary All Listings Stream
+ */
+export type allListingsStreamApiAllListingsStreamGetResponse200 = {
+  data: unknown
+  status: 200
+}
+    
+export type allListingsStreamApiAllListingsStreamGetResponseSuccess = (allListingsStreamApiAllListingsStreamGetResponse200) & {
+  headers: Headers;
+};
+;
+
+export type allListingsStreamApiAllListingsStreamGetResponse = (allListingsStreamApiAllListingsStreamGetResponseSuccess)
+
+export const getAllListingsStreamApiAllListingsStreamGetUrl = () => {
+
+
+  
+
+  return `/api/all_listings/stream`
+}
+
+export const allListingsStreamApiAllListingsStreamGet = async ( options?: RequestInit): Promise<allListingsStreamApiAllListingsStreamGetResponse> => {
+  
+  const res = await fetch(getAllListingsStreamApiAllListingsStreamGetUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: allListingsStreamApiAllListingsStreamGetResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as allListingsStreamApiAllListingsStreamGetResponse
+}
+
+
+
+
+
+export const getAllListingsStreamApiAllListingsStreamGetQueryKey = () => {
+    return [
+    `/api/all_listings/stream`
+    ] as const;
+    }
+
+    
+export const getAllListingsStreamApiAllListingsStreamGetQueryOptions = <TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAllListingsStreamApiAllListingsStreamGetQueryKey();
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>> = ({ signal }) => allListingsStreamApiAllListingsStreamGet({ signal, ...fetchOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type AllListingsStreamApiAllListingsStreamGetQueryResult = NonNullable<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>>
+export type AllListingsStreamApiAllListingsStreamGetQueryError = unknown
+
+
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary All Listings Stream
+ */
+
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getAllListingsStreamApiAllListingsStreamGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+

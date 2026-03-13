@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.models import AllListingsResponse, ListingsStreamEvent, ScrapeProgress
-from app.scrape_bostad_sthlm import ListingsFetchException, scrape_all_listings
+from backend.app.scrape_bostadsthlm import ListingsFetchException, scrape_all_listings
 
 app = FastAPI(title="Bostad API")
 
@@ -39,11 +39,15 @@ async def all_listings_stream() -> StreamingResponse:
         try:
             await scrape_all_listings(progress_callback=emit_progress)
         except Exception as error:
-            progress = last_progress or ScrapeProgress(status="failed", current=0, total=0)
+            progress = last_progress or ScrapeProgress(
+                status="failed", current=0, total=0
+            )
             await queue.put(
                 ListingsStreamEvent(
                     event="failed",
-                    progress=progress.model_copy(update={"status": "failed", "message": str(error)}),
+                    progress=progress.model_copy(
+                        update={"status": "failed", "message": str(error)}
+                    ),
                 )
             )
         finally:
