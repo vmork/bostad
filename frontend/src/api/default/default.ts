@@ -5,22 +5,28 @@
  * OpenAPI spec version: 0.1.0
  */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
-  AllListingsResponse
+  AllListingsResponse,
+  HTTPValidationError,
+  ListingsSearchOptions
 } from '.././models';
 
 
@@ -146,6 +152,102 @@ export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeo
 
 
 /**
+ * @summary All Listings Post
+ */
+export type allListingsPostApiAllListingsPostResponse200 = {
+  data: AllListingsResponse
+  status: 200
+}
+
+export type allListingsPostApiAllListingsPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+    
+export type allListingsPostApiAllListingsPostResponseSuccess = (allListingsPostApiAllListingsPostResponse200) & {
+  headers: Headers;
+};
+export type allListingsPostApiAllListingsPostResponseError = (allListingsPostApiAllListingsPostResponse422) & {
+  headers: Headers;
+};
+
+export type allListingsPostApiAllListingsPostResponse = (allListingsPostApiAllListingsPostResponseSuccess | allListingsPostApiAllListingsPostResponseError)
+
+export const getAllListingsPostApiAllListingsPostUrl = () => {
+
+
+  
+
+  return `/api/all_listings`
+}
+
+export const allListingsPostApiAllListingsPost = async (listingsSearchOptions: ListingsSearchOptions, options?: RequestInit): Promise<allListingsPostApiAllListingsPostResponse> => {
+  
+  const res = await fetch(getAllListingsPostApiAllListingsPostUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      listingsSearchOptions,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: allListingsPostApiAllListingsPostResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as allListingsPostApiAllListingsPostResponse
+}
+
+
+
+
+export const getAllListingsPostApiAllListingsPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>, TError,{data: ListingsSearchOptions}, TContext> => {
+
+const mutationKey = ['allListingsPostApiAllListingsPost'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>, {data: ListingsSearchOptions}> = (props) => {
+          const {data} = props ?? {};
+
+          return  allListingsPostApiAllListingsPost(data,fetchOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllListingsPostApiAllListingsPostMutationResult = NonNullable<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>>
+    export type AllListingsPostApiAllListingsPostMutationBody = ListingsSearchOptions
+    export type AllListingsPostApiAllListingsPostMutationError = HTTPValidationError
+
+    /**
+ * @summary All Listings Post
+ */
+export const useAllListingsPostApiAllListingsPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>,
+        TError,
+        {data: ListingsSearchOptions},
+        TContext
+      > => {
+
+      const mutationOptions = getAllListingsPostApiAllListingsPostMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    /**
  * @summary All Listings Stream
  */
 export type allListingsStreamApiAllListingsStreamGetResponse200 = {
@@ -263,3 +365,100 @@ export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<Retu
 
 
 
+/**
+ * @summary All Listings Stream Post
+ */
+export type allListingsStreamPostApiAllListingsStreamPostResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type allListingsStreamPostApiAllListingsStreamPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+    
+export type allListingsStreamPostApiAllListingsStreamPostResponseSuccess = (allListingsStreamPostApiAllListingsStreamPostResponse200) & {
+  headers: Headers;
+};
+export type allListingsStreamPostApiAllListingsStreamPostResponseError = (allListingsStreamPostApiAllListingsStreamPostResponse422) & {
+  headers: Headers;
+};
+
+export type allListingsStreamPostApiAllListingsStreamPostResponse = (allListingsStreamPostApiAllListingsStreamPostResponseSuccess | allListingsStreamPostApiAllListingsStreamPostResponseError)
+
+export const getAllListingsStreamPostApiAllListingsStreamPostUrl = () => {
+
+
+  
+
+  return `/api/all_listings/stream`
+}
+
+export const allListingsStreamPostApiAllListingsStreamPost = async (listingsSearchOptions: ListingsSearchOptions, options?: RequestInit): Promise<allListingsStreamPostApiAllListingsStreamPostResponse> => {
+  
+  const res = await fetch(getAllListingsStreamPostApiAllListingsStreamPostUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      listingsSearchOptions,)
+  }
+)
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+  
+  const data: allListingsStreamPostApiAllListingsStreamPostResponse['data'] = body ? JSON.parse(body) : {}
+  return { data, status: res.status, headers: res.headers } as allListingsStreamPostApiAllListingsStreamPostResponse
+}
+
+
+
+
+export const getAllListingsStreamPostApiAllListingsStreamPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
+): UseMutationOptions<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>, TError,{data: ListingsSearchOptions}, TContext> => {
+
+const mutationKey = ['allListingsStreamPostApiAllListingsStreamPost'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>, {data: ListingsSearchOptions}> = (props) => {
+          const {data} = props ?? {};
+
+          return  allListingsStreamPostApiAllListingsStreamPost(data,fetchOptions)
+        }
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AllListingsStreamPostApiAllListingsStreamPostMutationResult = NonNullable<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>>
+    export type AllListingsStreamPostApiAllListingsStreamPostMutationBody = ListingsSearchOptions
+    export type AllListingsStreamPostApiAllListingsStreamPostMutationError = HTTPValidationError
+
+    /**
+ * @summary All Listings Stream Post
+ */
+export const useAllListingsStreamPostApiAllListingsStreamPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>,
+        TError,
+        {data: ListingsSearchOptions},
+        TContext
+      > => {
+
+      const mutationOptions = getAllListingsStreamPostApiAllListingsStreamPostMutationOptions(options);
+
+      return useMutation(mutationOptions, queryClient);
+    }
+    

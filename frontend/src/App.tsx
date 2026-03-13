@@ -1,63 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import type { AllListingsResponse } from "./api/models";
+import { useListingsData } from "./hooks/useListingsData";
 import { Listing } from "./components/Listing";
 import { ListingError } from "./components/ListingError";
-
-const LISTINGS_CACHE_KEY = "bostad:listings-cache";
-const LISTINGS_STREAM_URL = "/api/all_listings/stream";
-const EMPTY_RESPONSE: AllListingsResponse = {
-  listings: [],
-  errors: [],
-};
-
-interface CachedListings {
-  data: AllListingsResponse;
-  updatedAt: string;
-}
-
-type ScrapeEventStatus = "started" | "progress" | "complete" | "failed";
-
-interface ScrapeProgress {
-  status: ScrapeEventStatus;
-  current: number;
-  total: number;
-  errors: number;
-  listingId?: string;
-  message?: string;
-}
-
-interface ListingsStreamEvent {
-  event: ScrapeEventStatus;
-  progress: ScrapeProgress;
-  data?: AllListingsResponse;
-}
-
-function readCachedListings(): CachedListings | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const rawValue = window.localStorage.getItem(LISTINGS_CACHE_KEY);
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as CachedListings;
-  } catch {
-    window.localStorage.removeItem(LISTINGS_CACHE_KEY);
-    return null;
-  }
-}
-
-function writeCachedListings(payload: CachedListings) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(LISTINGS_CACHE_KEY, JSON.stringify(payload));
-}
+import type { ScrapeProgress } from "./lib/listingsStreamService";
 
 function formatUpdatedAt(updatedAt: string | null) {
   if (!updatedAt) {
@@ -83,23 +27,6 @@ function formatUpdatedAt(updatedAt: string | null) {
   } else {
     const days = Math.floor(timeDelta / (24 * 60 * 60 * 1000));
     return `${days} day${days > 1 ? "s" : ""} ago`;
-  }
-}
-
-function isAllListingsResponse(value: unknown): value is AllListingsResponse {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Partial<AllListingsResponse>;
-  return Array.isArray(candidate.listings) && Array.isArray(candidate.errors);
-}
-
-function parseStreamEvent(rawValue: string): ListingsStreamEvent | null {
-  try {
-    return JSON.parse(rawValue) as ListingsStreamEvent;
-  } catch {
-    return null;
   }
 }
 
@@ -187,119 +114,23 @@ function FetchStatusBadge({ progress }: FetchStatusBadgeProps) {
 }
 
 export default function App() {
-  const [cachedListings, setCachedListings] = useState<CachedListings | null>(
-    () => readCachedListings(),
-  );
-  const [progress, setProgress] = useState<ScrapeProgress | null>(null);
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const {
+    data,
+    updatedAt,
+    hasCachedData,
+    isFetching,
+    fetchError,
+    progress,
+    startListingsStream,
+  } = useListingsData();
 
-  useEffect(() => {
-    return () => {
-      eventSourceRef.current?.close();
-      eventSourceRef.current = null;
-    };
-  }, []);
-
-  function startListingsStream() {
-    if (eventSourceRef.current) {
-      return;
-    }
-
-    setIsFetching(true);
-    setFetchError(null);
-    setProgress(null);
-
-    const eventSource = new EventSource(LISTINGS_STREAM_URL);
-    let isFinished = false;
-    eventSourceRef.current = eventSource;
-
-    const closeStream = () => {
-      eventSource.close();
-      if (eventSourceRef.current === eventSource) {
-        eventSourceRef.current = null;
-      }
-    };
-
-    const handleFailure = (message: string, nextProgress?: ScrapeProgress) => {
-      isFinished = true;
-      setIsFetching(false);
-      setFetchError(message);
-      if (nextProgress) {
-        setProgress(nextProgress);
-      }
-      closeStream();
-    };
-
-    const handleEvent = (
-      event: MessageEvent<string>,
-      expectedEvent: ScrapeEventStatus,
-    ) => {
-      const parsedEvent = parseStreamEvent(event.data);
-      if (!parsedEvent || parsedEvent.event !== expectedEvent) {
-        handleFailure("Received an invalid listings stream response.");
-        return;
-      }
-
-      setProgress(parsedEvent.progress);
-
-      if (parsedEvent.event === "complete") {
-        if (!isAllListingsResponse(parsedEvent.data)) {
-          handleFailure("Listings stream completed without valid data.");
-          return;
-        }
-
-        const nextCachedListings = {
-          data: parsedEvent.data,
-          updatedAt: new Date().toISOString(),
-        };
-
-        isFinished = true;
-        setIsFetching(false);
-        setFetchError(null);
-        setCachedListings(nextCachedListings);
-        writeCachedListings(nextCachedListings);
-        closeStream();
-        return;
-      }
-
-      if (parsedEvent.event === "failed") {
-        handleFailure(
-          parsedEvent.progress.message ?? "Failed to fetch listings.",
-          parsedEvent.progress,
-        );
-      }
-    };
-
-    eventSource.addEventListener("started", (event) => {
-      handleEvent(event as MessageEvent<string>, "started");
-    });
-    eventSource.addEventListener("progress", (event) => {
-      handleEvent(event as MessageEvent<string>, "progress");
-    });
-    eventSource.addEventListener("complete", (event) => {
-      handleEvent(event as MessageEvent<string>, "complete");
-    });
-    eventSource.addEventListener("failed", (event) => {
-      handleEvent(event as MessageEvent<string>, "failed");
-    });
-    eventSource.onerror = () => {
-      if (isFinished) {
-        return;
-      }
-
-      handleFailure("The listings stream connection was interrupted.");
-    };
-  }
-
-  const data = cachedListings?.data ?? EMPTY_RESPONSE;
-  const updatedAt = formatUpdatedAt(cachedListings?.updatedAt ?? null);
-  const hasCachedData = Boolean(cachedListings);
+  const prettyUpdatedAt = formatUpdatedAt(updatedAt);
 
   const { listings, errors } = data;
 
-  const numApartments = listings.map(x => x.numApartments ?? 0).reduce((a, b) => a + b, 0);
+  const numApartments = listings
+    .map((x) => x.numApartments ?? 0)
+    .reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen bg-background px-6 py-8 sm:px-8">
@@ -310,10 +141,10 @@ export default function App() {
             <h1 className="text-2xl font-semibold text-foreground grow">
               {hasCachedData
                 ? `Showing ${listings.length} listings with ${numApartments} apartments`
-                : "No listings yet"} 
+                : "No listings yet"}
             </h1>
-            {updatedAt && (
-              <p className="text-sm text-muted">Updated {updatedAt}</p>
+            {prettyUpdatedAt && (
+              <p className="text-sm text-muted">Updated {prettyUpdatedAt}</p>
             )}
           </div>
 
@@ -325,7 +156,9 @@ export default function App() {
             {isFetching ? (
               <FetchStatusBadge progress={progress} />
             ) : (
-              <span className="text-base">{hasCachedData ? "Refetch" : "Fetch listings"}</span>
+              <span className="text-base">
+                {hasCachedData ? "Refetch" : "Fetch listings"}
+              </span>
             )}
           </button>
         </div>

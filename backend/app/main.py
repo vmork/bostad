@@ -5,8 +5,16 @@ from contextlib import suppress
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.models import AllListingsResponse, ListingsStreamEvent, ScrapeProgress
-from backend.app.scrape_bostadsthlm import ListingsFetchException, scrape_all_listings
+from app.models import (
+    AllListingsResponse,
+    ListingsSearchOptions,
+    ListingsStreamEvent,
+    ScrapeProgress,
+)
+from app.scrape_bostadsthlm import (
+    ListingsFetchException,
+    scrape_all_listings_with_options,
+)
 
 app = FastAPI(title="Bostad API")
 
@@ -18,14 +26,36 @@ def _encode_sse(event: ListingsStreamEvent) -> str:
 
 @app.get("/api/all_listings")
 async def all_listings() -> AllListingsResponse:
+    return await _all_listings_with_options(ListingsSearchOptions())
+
+
+@app.post("/api/all_listings")
+async def all_listings_post(options: ListingsSearchOptions) -> AllListingsResponse:
+    return await _all_listings_with_options(options)
+
+
+async def _all_listings_with_options(
+    options: ListingsSearchOptions,
+) -> AllListingsResponse:
     try:
-        return await scrape_all_listings()
+        return await scrape_all_listings_with_options(options)
     except ListingsFetchException as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
 
 @app.get("/api/all_listings/stream")
 async def all_listings_stream() -> StreamingResponse:
+    return await _all_listings_stream_with_options(ListingsSearchOptions())
+
+
+@app.post("/api/all_listings/stream")
+async def all_listings_stream_post(options: ListingsSearchOptions) -> StreamingResponse:
+    return await _all_listings_stream_with_options(options)
+
+
+async def _all_listings_stream_with_options(
+    options: ListingsSearchOptions,
+) -> StreamingResponse:
     queue: asyncio.Queue[ListingsStreamEvent | None] = asyncio.Queue()
     last_progress: ScrapeProgress | None = None
 
@@ -37,7 +67,10 @@ async def all_listings_stream() -> StreamingResponse:
     async def run_scrape() -> None:
         nonlocal last_progress
         try:
-            await scrape_all_listings(progress_callback=emit_progress)
+            await scrape_all_listings_with_options(
+                options=options,
+                progress_callback=emit_progress,
+            )
         except Exception as error:
             progress = last_progress or ScrapeProgress(
                 status="failed", current=0, total=0

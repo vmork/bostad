@@ -1,13 +1,10 @@
-import asyncio
 import re
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Optional as Opt
+from typing import Any, Optional as Opt
 from urllib.parse import urljoin
 
 import httpx
-import requests
 from bs4 import BeautifulSoup, Tag
-from pydantic import ValidationError
 
 from app.models import (
     AllListingsResponse,
@@ -16,22 +13,18 @@ from app.models import (
     Coordinates,
     DateRange,
     Listing,
-    ListingParseError,
-    ScrapeEventStatus,
-    ListingsStreamEvent,
+    ListingsSearchOptions,
     QueuePosition,
     Range,
-    ScrapeProgress,
     TenantRequirements,
 )
+from app.scraping.types import ProgressCallback
 
 BOSTAD_STHLM_BASE_PATH = "https://bostad.stockholm.se"
 IMAGE_HREF_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:$|\?)", re.IGNORECASE)
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-MAX_CONCURRENT_DETAIL_FETCHES = 12
 LISTINGS_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
 DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-ProgressCallback = Callable[[ListingsStreamEvent], Awaitable[None]]
 
 
 class ListingParseException(Exception):
@@ -40,6 +33,25 @@ class ListingParseException(Exception):
 
 class ListingsFetchException(Exception):
     """Raised when the listings index cannot be fetched."""
+
+
+# ----- Listing Merge Helpers -----
+
+
+def _scraped_updates(scraped_data: "_ScrapedListingPageData") -> dict[str, Any]:
+    """Return typed non-null scraped fields for safe Listing model updates.
+
+    We intentionally avoid model_dump() here, because model_copy(update=...) does not
+    validate update payloads and nested models (for example requirements) can become
+    plain dicts, causing pydantic serialization warnings later.
+    """
+
+    updates: dict[str, Any] = {}
+    for field_name in _ScrapedListingPageData.model_fields:
+        value = getattr(scraped_data, field_name)
+        if value is not None:
+            updates[field_name] = value
+    return updates
 
 
 def _absolute_url(url: str) -> str:
@@ -69,7 +81,8 @@ def _extract_image_urls(soup: BeautifulSoup) -> Opt[list[str]]:
     image_urls = [
         _absolute_url(href)
         for anchor in slider.select("a[href]")
-        if (href := _attribute_as_str(anchor.get("href"))) and IMAGE_HREF_RE.search(href)
+        if (href := _attribute_as_str(anchor.get("href")))
+        and IMAGE_HREF_RE.search(href)
     ]
     image_urls = _dedupe_keep_order(image_urls)
     return image_urls or None
@@ -79,8 +92,7 @@ def _extract_floorplan_url(soup: BeautifulSoup) -> Opt[str]:
     for anchor in soup.select("a[href]"):
         href = _attribute_as_str(anchor.get("href"))
         link_text = " ".join(
-            part
-            for part in [
+            part for part in [
                 anchor.get_text(" ", strip=True),
                 _attribute_as_str(anchor.get("aria-label")),
                 href,
@@ -112,7 +124,10 @@ def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
     items: list[str] = []
     for heading in soup.find_all("h3"):
         heading_text = heading.get_text(" ", strip=True)
-        if heading_text not in {"Villkor för att anmäla intresse", "Villkor för att skriva kontrakt"}:
+        if heading_text not in {
+            "Villkor för att anmäla intresse",
+            "Villkor för att skriva kontrakt",
+        }:
             continue
 
         container = heading.parent if isinstance(heading.parent, Tag) else None
@@ -150,18 +165,30 @@ def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
             age_max = float(match.group(1))
         if match := re.search(r"Lägsta årsinkomst:\s*(\d+)", item, re.IGNORECASE):
             income_min = float(match.group(1))
-        if match := re.search(r"Max antal hushållsmedlemmar:\s*(\d+)", item, re.IGNORECASE):
+        if match := re.search(
+            r"Max antal hushållsmedlemmar:\s*(\d+)", item, re.IGNORECASE
+        ):
             num_tenants_max = float(match.group(1))
 
-    has_structured_requirements = any(
-        value is not None for value in [age_min, age_max, income_min, num_tenants_max]
-    ) or student
+    has_structured_requirements = (
+        any(
+            value is not None
+            for value in [age_min, age_max, income_min, num_tenants_max]
+        )
+        or student
+    )
     if not has_structured_requirements:
         return None
 
-    age_range = Range(min=age_min, max=age_max) if age_min is not None or age_max is not None else None
+    age_range = (
+        Range(min=age_min, max=age_max)
+        if age_min is not None or age_max is not None
+        else None
+    )
     income_range = Range(min=income_min) if income_min is not None else None
-    num_tenants_range = Range(max=num_tenants_max) if num_tenants_max is not None else None
+    num_tenants_range = (
+        Range(max=num_tenants_max) if num_tenants_max is not None else None
+    )
     return TenantRequirements(
         student=student,
         age_range=age_range,
@@ -203,18 +230,20 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         area_sqm = data["Yta"] or data["LägstaYtan"]
         num_rooms = data["AntalRum"] or data["LägstaAntalRum"]
     except KeyError as error:
-        raise ListingParseException(f"Missing required key {error} for listing {listing_id}") from error
+        raise ListingParseException(
+            f"Missing required key {error} for listing {listing_id}"
+        ) from error
 
     lat, lng = data.get("KoordinatLatitud"), data.get("KoordinatLongitud")
     coords = Coordinates(lat=lat, long=lng) if lat and lng else None
     apartment_type: ApartmentType = (
         "student"
         if data.get("Student")
-        else "youth"
-        if data.get("Ungdom")
-        else "senior"
-        if data.get("Senior")
-        else "regular"
+        else (
+            "youth"
+            if data.get("Ungdom")
+            else "senior" if data.get("Senior") else "regular"
+        )
     )
     num_apartments = data.get("Antal")
     rent_range = Range(min=data.get("LägstaHyran"), max=data.get("HögstaHyran"))
@@ -280,138 +309,36 @@ async def parse_listing_async(
         html = await _fetch_listing_html(client, listing.url)
         scraped_data = _scrape_listing_html(html)
     except httpx.HTTPError as error:
-        raise ListingParseException(f"Failed to fetch {listing.url}: {error}") from error
+        raise ListingParseException(
+            f"Failed to fetch {listing.url}: {error}"
+        ) from error
 
-    return listing.model_copy(update=scraped_data.model_dump(exclude_none=True))
-
-
-def parse_listing(data: dict[str, Any], include_html: bool = True) -> Listing:
-    listing = _scrape_listing_json(data)
-
-    if not include_html:
-        return listing
-
-    try:
-        print(f"Fetching listing page for {listing.url}...")
-        response = requests.get(listing.url, timeout=10)
-        response.raise_for_status()
-        scraped_data = _scrape_listing_html(response.text)
-    except requests.RequestException as error:
-        raise ListingParseException(f"Failed to fetch {listing.url}: {error}") from error
-
-    return listing.model_copy(update=scraped_data.model_dump(exclude_none=True))
-
-
-async def _emit_progress(
-    progress_callback: Opt[ProgressCallback],
-    event: ScrapeEventStatus,
-    progress: ScrapeProgress,
-    data: Opt[AllListingsResponse] = None,
-) -> None:
-    if progress_callback is None:
-        return
-
-    await progress_callback(ListingsStreamEvent(event=event, progress=progress, data=data))
-
-
-async def _parse_listing_task(
-    index: int,
-    data: dict[str, Any],
-    client: httpx.AsyncClient,
-    semaphore: asyncio.Semaphore,
-) -> tuple[int, Opt[Listing], Opt[ListingParseError]]:
-    listing_id = str(data.get("AnnonsId", "unknown"))
-
-    try:
-        async with semaphore:
-            listing = await parse_listing_async(data, client, include_html=True)
-        return index, listing, None
-    except (ListingParseException, ValidationError) as error:
-        return index, None, ListingParseError(id=listing_id, reason=str(error))
+    return listing.model_copy(update=_scraped_updates(scraped_data))
 
 
 async def scrape_all_listings(
     progress_callback: Opt[ProgressCallback] = None,
 ) -> AllListingsResponse:
-    listings_url = f"{BOSTAD_STHLM_BASE_PATH}/AllaAnnonser"
+    from app.scraping.core import scrape_source_listings
+    from app.scraping.sources.bostadsthlm import BostadSthlmSource
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        print(f"Fetching listings from {listings_url}...")
-        started_at = datetime.now()
-        try:
-            response = await client.get(listings_url, timeout=LISTINGS_TIMEOUT)
-            response.raise_for_status()
-        except httpx.HTTPError as error:
-            raise ListingsFetchException(
-                f"Failed to fetch {listings_url}: {error}"
-            ) from error
+    return await scrape_source_listings(
+        source=BostadSthlmSource(),
+        options=ListingsSearchOptions(),
+        progress_callback=progress_callback,
+    )
 
-        print(
-            f"Fetched {listings_url} in {(datetime.now() - started_at).total_seconds():.2f} seconds, parsing data..."
-        )
 
-        data = response.json()
-        total = len(data)
-        await _emit_progress(
-            progress_callback,
-            "started",
-            ScrapeProgress(status="started", current=0, total=total),
-        )
+async def scrape_all_listings_with_options(
+    options: ListingsSearchOptions,
+    progress_callback: Opt[ProgressCallback] = None,
+) -> AllListingsResponse:
+    """New typed entrypoint used by API handlers with JSON search options."""
+    from app.scraping.core import scrape_source_listings
+    from app.scraping.sources.bostadsthlm import BostadSthlmSource
 
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT_DETAIL_FETCHES)
-        tasks = [
-            asyncio.create_task(_parse_listing_task(index, item, client, semaphore))
-            for index, item in enumerate(data)
-        ]
-
-        indexed_listings: list[tuple[int, Listing]] = []
-        indexed_errors: list[tuple[int, ListingParseError]] = []
-        errors_count = 0
-        completed = 0
-        parsing_started_at = datetime.now()
-
-        for completed_task in asyncio.as_completed(tasks):
-            index, listing, error = await completed_task
-            completed += 1
-
-            if listing is not None:
-                indexed_listings.append((index, listing))
-                listing_id = listing.id
-            else:
-                if error is None:
-                    error = ListingParseError(id="unknown", reason="Unknown parsing failure")
-                indexed_errors.append((index, error))
-                errors_count += 1
-                listing_id = error.id
-
-            await _emit_progress(
-                progress_callback,
-                "progress",
-                ScrapeProgress(
-                    status="progress",
-                    current=completed,
-                    total=total,
-                    errors=errors_count,
-                    listing_id=listing_id,
-                ),
-            )
-
-        listings = [listing for _, listing in sorted(indexed_listings, key=lambda item: item[0])]
-        errors = [error for _, error in sorted(indexed_errors, key=lambda item: item[0])]
-        result = AllListingsResponse(listings=listings, errors=errors)
-
-        print(
-            f"Parsed {len(listings)} listings with {len(errors)} errors in {(datetime.now() - parsing_started_at).total_seconds():.2f} seconds"
-        )
-        await _emit_progress(
-            progress_callback,
-            "complete",
-            ScrapeProgress(
-                status="complete",
-                current=total,
-                total=total,
-                errors=len(errors),
-            ),
-            data=result,
-        )
-        return result
+    return await scrape_source_listings(
+        source=BostadSthlmSource(),
+        options=options,
+        progress_callback=progress_callback,
+    )
