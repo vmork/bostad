@@ -31,7 +31,7 @@ class DateRange(CamelModel):
 class QueuePosition(CamelModel):
     my_position: Opt[int] = None
     total: Opt[int] = None
-    queue_times_sorted: Opt[list[datetime]] = None
+    oldest_queue_dates: Opt[list[datetime]] = None # sorted array of oldest queue dates, olest first
     has_good_chance: Opt[bool] = None
 
 
@@ -40,6 +40,19 @@ class TenantRequirements(CamelModel):
     age_range: Opt[Range] = None
     income_range: Opt[Range] = None
     num_tenants_range: Opt[Range] = None
+
+class ListingFeatures(CamelModel):
+    # should always be available in json response
+    balcony: Opt[bool] = None
+    elevator: Opt[bool] = None
+    new_production: Opt[bool] = None
+    
+    # not in json but can be scraped from listing page under "Egenskaper"
+    kitchen: Opt[bool] = None
+    bathroom: Opt[bool] = None
+    dishwasher: Opt[bool] = None
+    washing_machine: Opt[bool] = None
+    dryer: Opt[bool] = None
 
 
 ApartmentType = Literal["regular", "youth", "student", "senior"]
@@ -78,6 +91,7 @@ class Listing(CamelModel):
     apartment_type: ApartmentType
 
     # Misc
+    floor: Opt[int] # under "Vaning", can be negative, doesnt exist for multi-apt listings
     rental_period: Opt[DateRange] = None
     coords: Opt[Coordinates] = None
     application_deadline: Opt[datetime] = None

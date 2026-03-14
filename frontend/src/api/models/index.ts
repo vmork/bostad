@@ -30,6 +30,7 @@ export * from './listingsSearchOptions';
 export * from './queuePosition';
 export * from './queuePositionHasGoodChance';
 export * from './queuePositionMyPosition';
+export * from './queuePositionOldestQueueDates';
 export * from './queuePositionQueueTimesSorted';
 export * from './queuePositionTotal';
 export * from './range';

@@ -19,8 +19,13 @@
   - Map based filter
 
 ### General
-- Refactor: abstract out stream / async code in clean way
-
+- camelcase bug for requirements
+- parse age range from youth apts, currently always empty
+- finalize list view
+- where to put expand button and add to collection button
+  - prob under same popup atleast
+- do expanded view
+  - images/floorplan (if possible?), free text
 - Feat: save listings to personal collection
   - Need db or just localstorage?
 - Feat: "bevakning", feed of relevant new listings sorted by recent

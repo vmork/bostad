@@ -6,12 +6,12 @@
  */
 import type { QueuePositionMyPosition } from './queuePositionMyPosition';
 import type { QueuePositionTotal } from './queuePositionTotal';
-import type { QueuePositionQueueTimesSorted } from './queuePositionQueueTimesSorted';
+import type { QueuePositionOldestQueueDates } from './queuePositionOldestQueueDates';
 import type { QueuePositionHasGoodChance } from './queuePositionHasGoodChance';
 
 export interface QueuePosition {
   myPosition?: QueuePositionMyPosition;
   total?: QueuePositionTotal;
-  queueTimesSorted?: QueuePositionQueueTimesSorted;
+  oldestQueueDates?: QueuePositionOldestQueueDates;
   hasGoodChance?: QueuePositionHasGoodChance;
 }

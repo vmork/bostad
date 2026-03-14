@@ -73,6 +73,14 @@ def _parse_iso_datetime(value: str) -> Opt[datetime]:
         return None
 
 
+def _parse_numeric_text(value: str) -> Opt[float]:
+    """Parse numbers that may contain spaces or suffix text, e.g. '600 000 kronor'."""
+    digits = re.sub(r"\D", "", value)
+    if not digits:
+        return None
+    return float(digits)
+
+
 def _extract_image_urls(soup: BeautifulSoup) -> Opt[list[str]]:
     slider = soup.select_one(".image-slider")
     if slider is None:
@@ -92,7 +100,8 @@ def _extract_floorplan_url(soup: BeautifulSoup) -> Opt[str]:
     for anchor in soup.select("a[href]"):
         href = _attribute_as_str(anchor.get("href"))
         link_text = " ".join(
-            part for part in [
+            part
+            for part in [
                 anchor.get_text(" ", strip=True),
                 _attribute_as_str(anchor.get("aria-label")),
                 href,
@@ -145,7 +154,8 @@ def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
 
 def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
     requirement_items = _extract_requirement_items(soup)
-    if not requirement_items:
+    page_text = soup.get_text(" ", strip=True)
+    if not requirement_items and not page_text:
         return None
 
     student = False
@@ -159,16 +169,39 @@ def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
         if "studentvillkor" in item_lower:
             student = True
 
-        if match := re.search(r"Lägsta tillåtna ålder:\s*(\d+)", item, re.IGNORECASE):
-            age_min = float(match.group(1))
-        if match := re.search(r"Högsta tillåtna ålder:\s*(\d+)", item, re.IGNORECASE):
-            age_max = float(match.group(1))
-        if match := re.search(r"Lägsta årsinkomst:\s*(\d+)", item, re.IGNORECASE):
-            income_min = float(match.group(1))
         if match := re.search(
-            r"Max antal hushållsmedlemmar:\s*(\d+)", item, re.IGNORECASE
+            r"Lägsta tillåtna ålder\s*:?\s*(\d+)", item, re.IGNORECASE
         ):
-            num_tenants_max = float(match.group(1))
+            age_min = float(match.group(1))
+        if match := re.search(
+            r"Högsta tillåtna ålder\s*:?\s*(\d+)", item, re.IGNORECASE
+        ):
+            age_max = float(match.group(1))
+        if match := re.search(
+            r"Lägsta årsinkomst\s*:?\s*([\d\s]+)", item, re.IGNORECASE
+        ):
+            parsed_income = _parse_numeric_text(match.group(1))
+            if parsed_income is not None:
+                income_min = parsed_income
+        if match := re.search(
+            r"Max antal hushållsmedlemmar\s*:?\s*([\d\s]+)",
+            item,
+            re.IGNORECASE,
+        ):
+            parsed_max_tenants = _parse_numeric_text(match.group(1))
+            if parsed_max_tenants is not None:
+                num_tenants_max = parsed_max_tenants
+
+    # Youth listings often encode the age interval in descriptive text
+    # ('mellan 18 och 30 år') instead of only the structured requirement list.
+    if age_min is None or age_max is None:
+        if match := re.search(
+            r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE
+        ):
+            if age_min is None:
+                age_min = float(match.group(1))
+            if age_max is None:
+                age_max = float(match.group(2))
 
     has_structured_requirements = (
         any(
@@ -203,7 +236,7 @@ def _extract_queue_position(soup: BeautifulSoup) -> Opt[QueuePosition]:
         if heading is None or heading.get_text(" ", strip=True) != "Kötider":
             continue
 
-        queue_times_sorted = []
+        oldest_queue_dates = []
         for item in section.select(".queue-list .u-list-disc li"):
             date_text = item.get_text(" ", strip=True)
             if not DATE_RE.fullmatch(date_text):
@@ -211,10 +244,13 @@ def _extract_queue_position(soup: BeautifulSoup) -> Opt[QueuePosition]:
 
             parsed_date = _parse_iso_datetime(date_text)
             if parsed_date is not None:
-                queue_times_sorted.append(parsed_date)
+                oldest_queue_dates.append(parsed_date)
 
-        if queue_times_sorted:
-            return QueuePosition(queue_times_sorted=queue_times_sorted)
+        # sort, oldest first
+        oldest_queue_dates.sort()
+
+        if oldest_queue_dates:
+            return QueuePosition(oldest_queue_dates=oldest_queue_dates)
 
     return None
 
@@ -312,6 +348,11 @@ async def parse_listing_async(
         raise ListingParseException(
             f"Failed to fetch {listing.url}: {error}"
         ) from error
+
+    # Sometimes student apartments are not marked as such in the listing index, but the detail
+    # page makes it clear, so we override the apartment type if student requirements are found.
+    if scraped_data.requirements and scraped_data.requirements.student:
+        listing.apartment_type = "student"
 
     return listing.model_copy(update=_scraped_updates(scraped_data))
 

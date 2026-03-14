@@ -2,6 +2,7 @@ import { useListingsData } from "./hooks/useListingsData";
 import { Listing } from "./components/Listing";
 import { ListingError } from "./components/ListingError";
 import type { ScrapeProgress } from "./lib/listingsStreamService";
+import { formatDuration } from "./lib/utils";
 
 function formatUpdatedAt(updatedAt: string | null) {
   if (!updatedAt) {
@@ -16,18 +17,7 @@ function formatUpdatedAt(updatedAt: string | null) {
 
   const timeDelta = Date.now() - parsedUpdatedAt;
 
-  if (timeDelta < 60 * 1000) {
-    return "just now";
-  } else if (timeDelta < 60 * 60 * 1000) {
-    const minutes = Math.floor(timeDelta / (60 * 1000));
-    return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
-  } else if (timeDelta < 24 * 60 * 60 * 1000) {
-    const hours = Math.floor(timeDelta / (60 * 60 * 1000));
-    return `${hours} hour${hours > 1 ? "s" : ""} ago`;
-  } else {
-    const days = Math.floor(timeDelta / (24 * 60 * 60 * 1000));
-    return `${days} day${days > 1 ? "s" : ""} ago`;
-  }
+  return formatDuration(timeDelta);
 }
 
 function formatHeaderStatusLabel(progress: ScrapeProgress | null) {
