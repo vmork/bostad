@@ -1,14 +1,11 @@
 ## TODO
 ### Backend specific
-- None right now
+- scraping improvements
 
 ### Frontend specific
 - Notification area
   - Indication after fetching successfully, number of listings added and removed
 
-- Listings view
-  - Collapsed overview
-  - Expanded view
 - Show all errors in single expandable error section (collapsed by default), improve ListingError component 
 
 - Sorting
@@ -19,9 +16,6 @@
   - Map based filter
 
 ### General
-- camelcase bug for requirements
-- parse age range from youth apts, currently always empty
-- finalize list view
 - where to put expand button and add to collection button
   - prob under same popup atleast
 - do expanded view

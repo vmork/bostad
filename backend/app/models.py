@@ -50,32 +50,12 @@ class ListingFeatures(CamelModel):
     # not in json but can be scraped from listing page under "Egenskaper"
     kitchen: Opt[bool] = None
     bathroom: Opt[bool] = None
-    dishwasher: Opt[bool] = None
-    washing_machine: Opt[bool] = None
-    dryer: Opt[bool] = None
+    # if these are not present, assume not available
+    dishwasher: bool = False
+    washing_machine: bool = False
+    dryer: bool = False
 
 
-ApartmentType = Literal["regular", "youth", "student", "senior"]
-ListingSource = Literal["bostadsthlm"]
-
-
-class ListingsSearchOptions(CamelModel):
-    """Typed search options for listing fetch requests.
-
-    The API accepts a list to be forward-compatible with multi-source scraping,
-    but currently only the single source "bostadsthlm" is supported.
-    """
-
-    sources: list[ListingSource] = Field(default_factory=lambda: ["bostadsthlm"])
-
-    @field_validator("sources")
-    @classmethod
-    def _validate_sources(cls, sources: list[ListingSource]) -> list[ListingSource]:
-        if not sources:
-            raise ValueError("At least one source must be provided")
-        if len(sources) != 1:
-            raise ValueError("Only one source is currently supported")
-        return sources
 
 
 class Listing(CamelModel):
@@ -89,6 +69,7 @@ class Listing(CamelModel):
     area_sqm: float  # minimum area for multi-ap listings
     num_rooms: float  # minimum number of rooms for multi-ap listings
     apartment_type: ApartmentType
+    features: ListingFeatures = Field(default_factory=ListingFeatures)
 
     # Misc
     floor: Opt[int] # under "Vaning", can be negative, doesnt exist for multi-apt listings
@@ -112,9 +93,32 @@ class ListingParseError(CamelModel):
     id: str
     reason: str
 
+ApartmentType = Literal["regular", "youth", "student", "senior"]
+ListingSource = Literal["bostadsthlm"]
+
+class ListingsSearchOptions(CamelModel):
+    """Typed search options for listing fetch requests.
+
+    The API accepts a list to be forward-compatible with multi-source scraping,
+    but currently only the single source "bostadsthlm" is supported.
+
+    `max_listings` can be used during debugging to parse only the first N
+    listing index items. It defaults to None, which parses all listings.
+    """
+
+    sources: list[ListingSource] = Field(default_factory=lambda: ["bostadsthlm"])
+    max_listings: Opt[int] = Field(default=None, ge=1)
+
+    @field_validator("sources")
+    @classmethod
+    def _validate_sources(cls, sources: list[ListingSource]) -> list[ListingSource]:
+        if not sources:
+            raise ValueError("At least one source must be provided")
+        if len(sources) != 1:
+            raise ValueError("Only one source is currently supported")
+        return sources
 
 ScrapeEventStatus = Literal["started", "progress", "complete", "failed"]
-
 
 class ScrapeProgress(CamelModel):
     status: ScrapeEventStatus

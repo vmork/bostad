@@ -13,6 +13,7 @@ from app.models import (
     Coordinates,
     DateRange,
     Listing,
+    ListingFeatures,
     ListingsSearchOptions,
     QueuePosition,
     Range,
@@ -21,10 +22,12 @@ from app.models import (
 from app.scraping.types import ProgressCallback
 
 BOSTAD_STHLM_BASE_PATH = "https://bostad.stockholm.se"
+LISTINGS_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
+DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
 IMAGE_HREF_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:$|\?)", re.IGNORECASE)
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-LISTINGS_TIMEOUT = httpx.Timeout(20.0, connect=10.0)
-DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+NEGATION_PREFIXES = ("ej ", "inte ", "ingen ", "inget ", "utan ", "saknar ")
 
 
 class ListingParseException(Exception):
@@ -255,6 +258,80 @@ def _extract_queue_position(soup: BeautifulSoup) -> Opt[QueuePosition]:
     return None
 
 
+def _normalize_feature_label(label: str) -> str:
+    """Normalize labels from the Egenskaper list for stable matching."""
+    return " ".join(label.strip().lower().split())
+
+
+def _extract_feature_labels(soup: BeautifulSoup) -> list[str]:
+    """Extract normalized labels under the Egenskaper section."""
+    for heading in soup.find_all("h2"):
+        if heading.get_text(" ", strip=True).lower() != "egenskaper":
+            continue
+
+        container = heading.parent if isinstance(heading.parent, Tag) else None
+        if container is None:
+            return []
+
+        return [
+            _normalize_feature_label(text)
+            for item in container.select("li")
+            if (text := item.get_text(" ", strip=True))
+        ]
+
+    return []
+
+
+def _is_explicit_negative_feature(label: str, keyword: str) -> bool:
+    if keyword not in label:
+        return False
+    return any(label.startswith(prefix) for prefix in NEGATION_PREFIXES)
+
+
+def _extract_html_listing_features(soup: BeautifulSoup) -> ListingFeatures:
+    """Parse feature signals only available on listing detail pages.
+
+    Balcony/elevator/new production are intentionally not derived from HTML,
+    because they are already present in the listing index JSON payload.
+    """
+
+    labels = _extract_feature_labels(soup)
+
+    kitchen: Opt[bool] = None
+    if any(_is_explicit_negative_feature(label, "kök") for label in labels):
+        kitchen = False
+    elif any("kök" in label for label in labels):
+        kitchen = True
+
+    bathroom: Opt[bool] = None
+    if any(_is_explicit_negative_feature(label, "badrum") for label in labels):
+        bathroom = False
+    elif any("badrum" in label for label in labels):
+        bathroom = True
+
+    # "Förberett för installation ..." means the appliance is not installed yet.
+    dishwasher = any(
+        "diskmaskin" in label and "förberett" not in label and "installation" not in label
+        for label in labels
+    )
+    washing_machine = any(
+        "tvättmaskin" in label and "förberett" not in label and "installation" not in label
+        for label in labels
+    )
+    dryer = any(
+        "torktumlare" in label and "förberett" not in label and "installation" not in label
+        for label in labels
+    )
+
+    return ListingFeatures(
+        kitchen=kitchen,
+        bathroom=bathroom,
+        dishwasher=dishwasher,
+        washing_machine=washing_machine,
+        dryer=dryer,
+    )
+
+
 def _scrape_listing_json(data: dict[str, Any]) -> Listing:
     listing_id = str(data.get("AnnonsId", "unknown"))
     try:
@@ -286,6 +363,12 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
     area_sqm_range = Range(min=data.get("LägstaYtan"), max=data.get("HögstaYtan"))
     date_posted = data.get("AnnonseradFran")
     application_deadline = data.get("AnnonseradTill")
+    floor = data.get("Vaning")
+    features = ListingFeatures(
+        balcony=data.get("Balkong"),
+        elevator=data.get("Hiss"),
+        new_production=data.get("Nyproduktion"),
+    )
 
     return Listing(
         id=listing_id,
@@ -297,6 +380,8 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         area_sqm=area_sqm,
         num_rooms=num_rooms,
         apartment_type=apartment_type,
+        floor=floor,
+        features=features,
         coords=coords,
         date_posted=date_posted,
         application_deadline=application_deadline,
@@ -313,6 +398,7 @@ class _ScrapedListingPageData(CamelModel):
     image_urls: Opt[list[str]] = None
     floorplan_url: Opt[str] = None
     free_text: Opt[str] = None
+    features: Opt[ListingFeatures] = None
 
 
 def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
@@ -323,6 +409,7 @@ def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
         image_urls=_extract_image_urls(soup),
         floorplan_url=_extract_floorplan_url(soup),
         free_text=_extract_free_text(soup),
+        features=_extract_html_listing_features(soup),
     )
 
 
@@ -354,7 +441,17 @@ async def parse_listing_async(
     if scraped_data.requirements and scraped_data.requirements.student:
         listing.apartment_type = "student"
 
-    return listing.model_copy(update=_scraped_updates(scraped_data))
+    # Merge only HTML-exclusive feature flags onto JSON-derived features.
+    if scraped_data.features is not None:
+        listing.features = listing.features.model_copy(
+            update=scraped_data.features.model_dump(
+                include={"kitchen", "bathroom", "dishwasher", "washing_machine", "dryer"}
+            )
+        )
+
+    scraped_updates = _scraped_updates(scraped_data)
+    scraped_updates.pop("features", None)
+    return listing.model_copy(update=scraped_updates)
 
 
 async def scrape_all_listings(

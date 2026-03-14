@@ -1,5 +1,5 @@
 import type { Listing, Range } from "../api/models";
-import { UserRoundIcon, Clock3Icon, InfoIcon } from "lucide-react";
+import { UserRoundIcon, Clock3Icon, InfoIcon, PlusIcon } from "lucide-react";
 import { formatDuration, cn } from "../lib/utils";
 
 function rangeExists(range: Range | null | undefined): range is Partial<Range> {
@@ -25,7 +25,7 @@ function Pill({
   style,
 }: {
   children: React.ReactNode;
-  style?: "highlight-yellow" | "highlight-green" | "default";
+  style?: "highlight-yellow" | "highlight-green" | "highlight-red" | "default";
 }) {
   return (
     <span
@@ -33,6 +33,7 @@ function Pill({
         "inline-flex min-w-fit items-center rounded-md bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600 border border-gray-300",
         style === "highlight-yellow" && "border border-yellow-600",
         style === "highlight-green" && "border border-green-600",
+        style === "highlight-red" && "border border-red-600",
       )}
     >
       {children}
@@ -40,7 +41,7 @@ function Pill({
   );
 }
 
-type SectionIconKind = "info" | "requirements" | "queue";
+type SectionIconKind = "info" | "extras" | "requirements" | "queue";
 
 function SectionIcon({ kind }: { kind: SectionIconKind }) {
   const iconByKind: Record<
@@ -48,6 +49,7 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
     React.ComponentType<{ className?: string; strokeWidth?: number }>
   > = {
     info: InfoIcon,
+    extras: PlusIcon,
     requirements: UserRoundIcon,
     queue: Clock3Icon,
   };
@@ -55,7 +57,7 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
 
   return (
     <span className="mt-1 inline-flex h-4 w-4 text-muted" aria-hidden="true">
-      <Icon className="h-4 w-4"/>
+      <Icon className="h-4 w-4" />
     </span>
   );
 }
@@ -71,6 +73,22 @@ export function Listing({ listing: lg }: { listing: Listing }) {
     lg.apartmentType !== "regular" ||
     rangeExists(lg.requirements?.ageRange) ||
     rangeExists(lg.requirements?.incomeRange);
+
+  // Only show kitchen/bathroom when they are explicitly missing.
+  const missingCriticalFeatures = [
+    lg.features?.kitchen === false ? "No kitchen" : null,
+    lg.features?.bathroom === false ? "No bathroom" : null,
+  ].filter((value): value is string => value !== null);
+
+  // Only show appliance extras when they are explicitly present.
+  const availableApplianceFeatures = [
+    lg.features?.dishwasher ? "Dishwasher" : null,
+    lg.features?.washingMachine ? "Washing machine" : null,
+    lg.features?.dryer ? "Dryer" : null,
+  ].filter((value): value is string => value !== null);
+
+  const hasExtraFeatures =
+    missingCriticalFeatures.length > 0 || availableApplianceFeatures.length > 0;
 
   // mock
   lg.queuePosition = {
@@ -128,9 +146,10 @@ export function Listing({ listing: lg }: { listing: Listing }) {
                 : `${lg.areaSqm} m²`}
             </Pill>
             <Pill>{lg.numRooms} rum</Pill>
-          {!singleApartment && (
-            <Pill>{lg.numApartments} lgh</Pill>
-          )}
+            {!singleApartment && <Pill>{lg.numApartments} lgh</Pill>}
+            {lg.floor !== null && lg.floor !== undefined && (
+              <Pill>Floor: {lg.floor}</Pill>
+            )}
           </div>
         </div>
 
@@ -140,9 +159,7 @@ export function Listing({ listing: lg }: { listing: Listing }) {
             <SectionIcon kind="requirements" />
             <div className="flex flex-wrap gap-1.5">
               {lg.apartmentType !== "regular" && (
-                <Pill style="highlight-yellow">
-                  Type: {lg.apartmentType}
-                </Pill>
+                <Pill style="highlight-yellow">Type: {lg.apartmentType}</Pill>
               )}
               {rangeExists(lg.requirements?.ageRange) && (
                 <Pill style="highlight-yellow">
@@ -151,7 +168,8 @@ export function Listing({ listing: lg }: { listing: Listing }) {
               )}
               {rangeExists(lg.requirements?.incomeRange) && (
                 <Pill style="highlight-yellow">
-                  Income: {formatRangeString(lg.requirements.incomeRange)} kr/year
+                  Income: {formatRangeString(lg.requirements.incomeRange)}{" "}
+                  kr/year
                 </Pill>
               )}
             </div>
@@ -175,9 +193,30 @@ export function Listing({ listing: lg }: { listing: Listing }) {
                 days
               </Pill>
             )}
-            {lg.queuePosition?.hasGoodChance && <Pill style="highlight-green">Good chance</Pill>}
+            {lg.queuePosition?.hasGoodChance && (
+              <Pill style="highlight-green">Good chance</Pill>
+            )}
           </div>
         </div>
+
+        {/* extra features */}
+        {hasExtraFeatures && (
+          <div className="flex items-start gap-1.5">
+            <SectionIcon kind="extras" />
+            <div className="flex flex-wrap gap-1.5">
+              {missingCriticalFeatures.map((feature) => (
+                <Pill key={feature} style="highlight-red">
+                  {feature}
+                </Pill>
+              ))}
+              {availableApplianceFeatures.map((feature) => (
+                <Pill key={feature} style="highlight-green">
+                  {feature}
+                </Pill>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

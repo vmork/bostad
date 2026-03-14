@@ -31,7 +31,7 @@ When backend request/response models or stream event payloads change, always re-
   - Source-specific implementations in `backend/app/scraping/sources/`
   - HTTP client setup in `backend/app/http/client.py`
 - `backend/app/scrape_bostadsthlm.py` remains the source parser module and compatibility entrypoint
-- Typed fetch options are modeled in `ListingsSearchOptions` (`backend/app/models.py`), currently with `sources` constrained to `bostadsthlm`
+- Typed fetch options are modeled in `ListingsSearchOptions` (`backend/app/models.py`), currently with `sources` constrained to `bostadsthlm` and optional `max_listings` (debug-only parse limit, default `None`)
 - Run: `uvicorn app.main:app --reload --port 8000`
 
 ### Frontend (`frontend/`)
@@ -76,6 +76,7 @@ import type { AllListingsResponse } from "./api/models";
 
 - Keep source-specific selectors, localized labels, and mapping rules inside source modules under `backend/app/scraping/sources/`.
 - Keep concurrency limits, progress emission, ordering, and error aggregation in `backend/app/scraping/core.py`.
+- Use `ListingsSearchOptions.max_listings` to limit parsing during debugging; leave it as `None` in normal runs to parse all listings.
 - Avoid passing `model_dump()` dicts for nested model updates into `Listing.model_copy(update=...)`; prefer typed field updates to prevent serialization warnings.
 
 ## Key Files

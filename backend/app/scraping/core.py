@@ -65,6 +65,10 @@ async def scrape_source_listings(
     async with create_async_client() as client:
         started_at = datetime.now()
         data = await source.fetch_listing_index(client, options)
+        total_index_items = len(data)
+        limit = options.max_listings
+        if limit is not None:
+            data = data[:limit]
         total = len(data)
 
         await _emit_progress(
@@ -126,6 +130,7 @@ async def scrape_source_listings(
 
         print(
             f"Parsed {len(listings)} listings with {len(errors)} errors in {(datetime.now() - started_at).total_seconds():.2f} seconds"
+            f" (index items available: {total_index_items}, limit: {limit})"
         )
         await _emit_progress(
             source,

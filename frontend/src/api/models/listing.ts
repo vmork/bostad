@@ -5,6 +5,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListingApartmentType } from './listingApartmentType';
+import type { ListingFeatures } from './listingFeatures';
+import type { ListingFloor } from './listingFloor';
 import type { ListingRentalPeriod } from './listingRentalPeriod';
 import type { ListingCoords } from './listingCoords';
 import type { ListingApplicationDeadline } from './listingApplicationDeadline';
@@ -28,6 +30,8 @@ export interface Listing {
   areaSqm: number;
   numRooms: number;
   apartmentType: ListingApartmentType;
+  features?: ListingFeatures;
+  floor: ListingFloor;
   rentalPeriod?: ListingRentalPeriod;
   coords?: ListingCoords;
   applicationDeadline?: ListingApplicationDeadline;
