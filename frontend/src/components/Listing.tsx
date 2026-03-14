@@ -90,17 +90,15 @@ export function Listing({ listing: lg }: { listing: Listing }) {
   const hasExtraFeatures =
     missingCriticalFeatures.length > 0 || availableApplianceFeatures.length > 0;
 
-  // mock
-  lg.queuePosition = {
-    myPosition: Math.floor(Math.random() * 100) + 1,
-    total: 100,
-    hasGoodChance: Math.random() < 0.5,
-    oldestQueueDates: [new Date(Date.now() - 1000 * 60 * 60 * 24 * 1234.3)],
-  };
-
   const longestQueueTimeMs = lg.queuePosition?.oldestQueueDates
     ? Date.now() - new Date(lg.queuePosition.oldestQueueDates[0]).getTime()
     : null;
+
+  const hasQueueInfo =
+    (lg.queuePosition?.myPosition != null &&
+      lg.queuePosition?.total != null) ||
+    longestQueueTimeMs !== null ||
+    lg.queuePosition?.hasGoodChance === true;
 
   return (
     <div className="rounded-lg border-2 border-gray-300 bg-white p-2 flex flex-col relative">
@@ -177,27 +175,31 @@ export function Listing({ listing: lg }: { listing: Listing }) {
         )}
 
         {/* queue info */}
-        <div className="flex items-start gap-1.5">
-          <SectionIcon kind="queue" />
-          <div className="flex flex-wrap gap-1.5">
-            {lg.queuePosition?.myPosition != undefined &&
-              lg.queuePosition?.total != undefined && (
+        {hasQueueInfo && (
+          <div className="flex items-start gap-1.5">
+            <SectionIcon kind="queue" />
+            <div className="flex flex-wrap gap-1.5">
+              {lg.queuePosition?.myPosition !== undefined &&
+                lg.queuePosition?.myPosition !== null &&
+                lg.queuePosition?.total !== undefined &&
+                lg.queuePosition?.total !== null && (
+                  <Pill>
+                    Position: {lg.queuePosition.myPosition} /{" "}
+                    {lg.queuePosition.total}
+                  </Pill>
+                )}
+              {longestQueueTimeMs !== null && (
                 <Pill>
-                  Position: {lg.queuePosition.myPosition} /{" "}
-                  {lg.queuePosition.total}
+                  Longest: {Math.floor(longestQueueTimeMs / (1000 * 3600 * 24))}{" "}
+                  days
                 </Pill>
               )}
-            {longestQueueTimeMs != undefined && (
-              <Pill>
-                Longest: {Math.floor(longestQueueTimeMs / (1000 * 3600 * 24))}{" "}
-                days
-              </Pill>
-            )}
-            {lg.queuePosition?.hasGoodChance && (
-              <Pill style="highlight-green">Good chance</Pill>
-            )}
+              {lg.queuePosition?.hasGoodChance === true && (
+                <Pill style="highlight-green">Good chance</Pill>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* extra features */}
         {hasExtraFeatures && (
@@ -210,7 +212,7 @@ export function Listing({ listing: lg }: { listing: Listing }) {
                 </Pill>
               ))}
               {availableApplianceFeatures.map((feature) => (
-                <Pill key={feature} style="highlight-green">
+                <Pill key={feature}>
                   {feature}
                 </Pill>
               ))}

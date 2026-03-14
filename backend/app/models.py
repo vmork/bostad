@@ -31,7 +31,9 @@ class DateRange(CamelModel):
 class QueuePosition(CamelModel):
     my_position: Opt[int] = None
     total: Opt[int] = None
-    oldest_queue_dates: Opt[list[datetime]] = None # sorted array of oldest queue dates, olest first
+    oldest_queue_dates: Opt[list[datetime]] = (
+        None  # sorted array of oldest queue dates, olest first
+    )
     has_good_chance: Opt[bool] = None
 
 
@@ -41,12 +43,13 @@ class TenantRequirements(CamelModel):
     income_range: Opt[Range] = None
     num_tenants_range: Opt[Range] = None
 
+
 class ListingFeatures(CamelModel):
     # should always be available in json response
     balcony: Opt[bool] = None
     elevator: Opt[bool] = None
     new_production: Opt[bool] = None
-    
+
     # not in json but can be scraped from listing page under "Egenskaper"
     kitchen: Opt[bool] = None
     bathroom: Opt[bool] = None
@@ -54,8 +57,6 @@ class ListingFeatures(CamelModel):
     dishwasher: bool = False
     washing_machine: bool = False
     dryer: bool = False
-
-
 
 
 class Listing(CamelModel):
@@ -72,7 +73,9 @@ class Listing(CamelModel):
     features: ListingFeatures = Field(default_factory=ListingFeatures)
 
     # Misc
-    floor: Opt[int] # under "Vaning", can be negative, doesnt exist for multi-apt listings
+    floor: Opt[
+        int
+    ]  # under "Vaning", can be negative, doesnt exist for multi-apt listings
     rental_period: Opt[DateRange] = None
     coords: Opt[Coordinates] = None
     application_deadline: Opt[datetime] = None
@@ -93,8 +96,10 @@ class ListingParseError(CamelModel):
     id: str
     reason: str
 
+
 ApartmentType = Literal["regular", "youth", "student", "senior"]
 ListingSource = Literal["bostadsthlm"]
+
 
 class ListingsSearchOptions(CamelModel):
     """Typed search options for listing fetch requests.
@@ -108,6 +113,7 @@ class ListingsSearchOptions(CamelModel):
 
     sources: list[ListingSource] = Field(default_factory=lambda: ["bostadsthlm"])
     max_listings: Opt[int] = Field(default=None, ge=1)
+    cookie: Opt[str] = None
 
     @field_validator("sources")
     @classmethod
@@ -118,13 +124,47 @@ class ListingsSearchOptions(CamelModel):
             raise ValueError("Only one source is currently supported")
         return sources
 
+    @field_validator("cookie")
+    @classmethod
+    def _normalize_cookie(cls, cookie: Opt[str]) -> Opt[str]:
+        """Normalize user-provided cookie input from UI/curl snippets.
+
+        We accept plain cookie strings and also tolerate common pasted forms,
+        such as a leading "Cookie:" prefix or a quoted value.
+        """
+        if cookie is None:
+            return None
+
+        normalized = cookie.strip()
+        if not normalized:
+            return None
+
+        if normalized.lower().startswith("cookie:"):
+            normalized = normalized.split(":", 1)[1].strip()
+
+        if normalized.startswith("-b "):
+            normalized = normalized[3:].strip()
+
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {"'", '"'}
+        ):
+            normalized = normalized[1:-1].strip()
+
+        normalized = " ".join(normalized.replace("\r", " ").replace("\n", " ").split())
+        return normalized or None
+
+
 ScrapeEventStatus = Literal["started", "progress", "complete", "failed"]
+
 
 class ScrapeProgress(CamelModel):
     status: ScrapeEventStatus
     current: int
     total: int
     errors: int = 0
+    logged_in: Opt[bool] = None
     listing_id: Opt[str] = None
     source: Opt[ListingSource] = None
     message: Opt[str] = None
@@ -133,6 +173,7 @@ class ScrapeProgress(CamelModel):
 class AllListingsResponse(CamelModel):
     listings: list[Listing]
     errors: list[ListingParseError]
+    logged_in: Opt[bool] = None
 
 
 class ListingsStreamEvent(CamelModel):

@@ -1,12 +1,7 @@
 ## TODO
 ### Backend specific
-- scraping improvements
-
-### Frontend specific
-- Notification area
-  - Indication after fetching successfully, number of listings added and removed
-
-- Show all errors in single expandable error section (collapsed by default), improve ListingError component 
+- Cookie bug
+- Improve options dropdown, reusable components for sorting/filtering
 
 - Sorting
 - Filters
@@ -15,7 +10,11 @@
   - toggle for boolean 
   - Map based filter
 
-### General
+- Notification area
+  - Indication after fetching successfully, number of listings added and removed
+
+- Show all errors in single expandable error section (collapsed by default), improve ListingError component 
+
 - where to put expand button and add to collection button
   - prob under same popup atleast
 - do expanded view

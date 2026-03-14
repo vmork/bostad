@@ -5,6 +5,7 @@ from contextlib import suppress
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.logging_config import configure_logging
 from app.models import (
     AllListingsResponse,
     ListingsSearchOptions,
@@ -15,6 +16,8 @@ from app.scrape_bostadsthlm import (
     ListingsFetchException,
     scrape_all_listings_with_options,
 )
+
+configure_logging()
 
 app = FastAPI(title="Bostad API")
 

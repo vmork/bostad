@@ -7,6 +7,7 @@ import {
   openListingsStream,
   readCachedListings,
   type CachedListings,
+  type ListingsStreamOptions,
   type ScrapeProgress,
   writeCachedListings,
 } from "../lib/listingsStreamService";
@@ -23,7 +24,8 @@ interface UseListingsDataResult {
   isFetching: boolean;
   fetchError: string | null;
   progress: ScrapeProgress | null;
-  startListingsStream: () => void;
+  loggedIn: boolean | null;
+  startListingsStream: (options?: ListingsStreamOptions) => void;
 }
 
 export function useListingsData(): UseListingsDataResult {
@@ -36,7 +38,18 @@ export function useListingsData(): UseListingsDataResult {
   const [progress, setProgress] = useState<ScrapeProgress | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(() => {
+    if (!cachedListings) {
+      return null;
+    }
+    return cachedListings.loggedIn ?? null;
+  });
   const closeStreamRef = useRef<(() => void) | null>(null);
+  const latestLoggedInRef = useRef<boolean | null>(loggedIn);
+
+  useEffect(() => {
+    latestLoggedInRef.current = loggedIn;
+  }, [loggedIn]);
 
   useEffect(() => {
     return () => {
@@ -45,7 +58,7 @@ export function useListingsData(): UseListingsDataResult {
     };
   }, []);
 
-  const startListingsStream = () => {
+  const startListingsStream = (options?: ListingsStreamOptions) => {
     if (closeStreamRef.current) {
       return;
     }
@@ -53,32 +66,41 @@ export function useListingsData(): UseListingsDataResult {
     setIsFetching(true);
     setFetchError(null);
     setProgress(null);
+    setLoggedIn(null);
 
-    closeStreamRef.current = openListingsStream(LISTINGS_STREAM_URL, {
-      onProgress: (nextProgress) => {
-        setProgress(nextProgress);
-      },
-      onComplete: (payload) => {
-        const nextCachedListings = {
-          data: payload,
-          updatedAt: new Date().toISOString(),
-        };
-
-        setIsFetching(false);
-        setFetchError(null);
-        setCachedListings(nextCachedListings);
-        writeCachedListings(cacheKey, nextCachedListings);
-        closeStreamRef.current = null;
-      },
-      onFailure: (message, nextProgress) => {
-        setIsFetching(false);
-        setFetchError(message);
-        if (nextProgress) {
+    closeStreamRef.current = openListingsStream(
+      LISTINGS_STREAM_URL,
+      {
+        onProgress: (nextProgress) => {
           setProgress(nextProgress);
-        }
-        closeStreamRef.current = null;
+          if (typeof nextProgress.loggedIn === "boolean") {
+            setLoggedIn(nextProgress.loggedIn);
+          }
+        },
+        onComplete: (payload) => {
+          const nextCachedListings = {
+            data: payload,
+            updatedAt: new Date().toISOString(),
+            loggedIn: latestLoggedInRef.current,
+          };
+
+          setIsFetching(false);
+          setFetchError(null);
+          setCachedListings(nextCachedListings);
+          writeCachedListings(cacheKey, nextCachedListings);
+          closeStreamRef.current = null;
+        },
+        onFailure: (message, nextProgress) => {
+          setIsFetching(false);
+          setFetchError(message);
+          if (nextProgress) {
+            setProgress(nextProgress);
+          }
+          closeStreamRef.current = null;
+        },
       },
-    });
+      options,
+    );
   };
 
   return {
@@ -88,6 +110,7 @@ export function useListingsData(): UseListingsDataResult {
     isFetching,
     fetchError,
     progress,
+    loggedIn,
     startListingsStream,
   };
 }

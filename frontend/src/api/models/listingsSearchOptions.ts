@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListingsSearchOptionsMaxListings } from './listingsSearchOptionsMaxListings';
+import type { ListingsSearchOptionsCookie } from './listingsSearchOptionsCookie';
 
 /**
  * Typed search options for listing fetch requests.
@@ -18,4 +19,5 @@ listing index items. It defaults to None, which parses all listings.
 export interface ListingsSearchOptions {
   sources?: 'bostadsthlm'[];
   maxListings?: ListingsSearchOptionsMaxListings;
+  cookie?: ListingsSearchOptionsCookie;
 }

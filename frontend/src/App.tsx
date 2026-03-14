@@ -1,8 +1,55 @@
 import { useListingsData } from "./hooks/useListingsData";
 import { Listing } from "./components/Listing";
 import { ListingError } from "./components/ListingError";
-import type { ScrapeProgress } from "./lib/listingsStreamService";
+import type {
+  ListingsStreamOptions,
+  ScrapeProgress,
+} from "./lib/listingsStreamService";
 import { formatDuration } from "./lib/utils";
+import { useEffect, useState } from "react";
+
+const SEARCH_OPTIONS_STORAGE_KEY = "bostad:search-options";
+
+function readStoredSearchOptions(): ListingsStreamOptions {
+  if (typeof window === "undefined") {
+    return { sources: ["bostadsthlm"] };
+  }
+
+  const rawValue = window.localStorage.getItem(SEARCH_OPTIONS_STORAGE_KEY);
+  if (!rawValue) {
+    return { sources: ["bostadsthlm"] };
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<ListingsStreamOptions>;
+    return {
+      sources: ["bostadsthlm"],
+      cookie: typeof parsed.cookie === "string" ? parsed.cookie : undefined,
+      maxListings:
+        typeof parsed.maxListings === "number" && Number.isFinite(parsed.maxListings)
+          ? parsed.maxListings
+          : undefined,
+    };
+  } catch {
+    return { sources: ["bostadsthlm"] };
+  }
+}
+
+function normalizeSearchOptions(options: ListingsStreamOptions): ListingsStreamOptions {
+  const normalizedCookie = options.cookie?.trim() || undefined;
+  const normalizedMaxListings =
+    typeof options.maxListings === "number"
+      ? Number.isFinite(options.maxListings) && options.maxListings >= 1
+        ? Math.floor(options.maxListings)
+        : undefined
+      : undefined;
+
+  return {
+    sources: ["bostadsthlm"],
+    cookie: normalizedCookie,
+    maxListings: normalizedMaxListings,
+  };
+}
 
 function formatUpdatedAt(updatedAt: string | null) {
   if (!updatedAt) {
@@ -104,6 +151,10 @@ function FetchStatusBadge({ progress }: FetchStatusBadgeProps) {
 }
 
 export default function App() {
+  const [searchOptions, setSearchOptions] = useState<ListingsStreamOptions>(() =>
+    readStoredSearchOptions(),
+  );
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const {
     data,
     updatedAt,
@@ -111,8 +162,19 @@ export default function App() {
     isFetching,
     fetchError,
     progress,
+    loggedIn,
     startListingsStream,
   } = useListingsData();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      SEARCH_OPTIONS_STORAGE_KEY,
+      JSON.stringify(searchOptions),
+    );
+  }, [searchOptions]);
 
   const prettyUpdatedAt = formatUpdatedAt(updatedAt);
 
@@ -138,19 +200,107 @@ export default function App() {
             )}
           </div>
 
-          <button
-            onClick={() => startListingsStream()}
-            disabled={isFetching}
-            className="flex w-fit py-2 px-2 items-center border border-border rounded-xl cursor-pointer disabled:cursor-default"
-          >
-            {isFetching ? (
-              <FetchStatusBadge progress={progress} />
-            ) : (
-              <span className="text-base">
-                {hasCachedData ? "Refetch" : "Fetch listings"}
-              </span>
-            )}
-          </button>
+          <div className="flex w-full items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => startListingsStream(normalizeSearchOptions(searchOptions))}
+                disabled={isFetching}
+                className="flex w-fit py-2 px-2 items-center border border-border rounded-xl cursor-pointer disabled:cursor-default"
+              >
+                {isFetching ? (
+                  <FetchStatusBadge progress={progress} />
+                ) : (
+                  <span className="text-base">
+                    {hasCachedData ? "Refetch" : "Fetch listings"}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsOptionsOpen((isOpen) => !isOpen)}
+                className="rounded-xl border border-border px-3 py-2 text-sm"
+              >
+                Options
+              </button>
+            </div>
+
+            <span
+              className={
+                loggedIn === true
+                  ? "shrink-0 text-sm text-green-700"
+                  : loggedIn === false
+                    ? "shrink-0 text-sm text-red-700"
+                    : "shrink-0 text-sm text-zinc-600"
+              }
+              title={
+                loggedIn === true
+                  ? "Listings were fetched as logged-in. Queue position fields are available when provided by the source."
+                  : loggedIn === false
+                    ? "Not logged in. Paste a fresh cookie in the Cookie input and refetch listings to include logged-in queue fields."
+                    : "Login status is unknown for the current data. Refetch listings after setting a cookie if queue fields are missing."
+              }
+            >
+              {loggedIn === true
+                ? "Logged in"
+                : loggedIn === false
+                  ? "Not logged in"
+                  : "Login unknown"}
+            </span>
+          </div>
+
+          {isOptionsOpen && (
+            <div className="mt-2 rounded-xl border border-border bg-white/80 p-3">
+              {/* Cookie settings */}
+              <div className="mb-3">
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Cookie (for logged-in queue fields)
+                </label>
+                <textarea
+                  value={searchOptions.cookie ?? ""}
+                  onChange={(event) =>
+                    setSearchOptions((current) => ({
+                      ...current,
+                      cookie: event.target.value,
+                    }))
+                  }
+                  placeholder="Paste cookie string from browser/curl"
+                  className="h-24 w-full rounded-xl border border-border px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Debug fetch limits */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-foreground">
+                  Max listings (debug only, blank = no limit)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={searchOptions.maxListings ?? ""}
+                  onChange={(event) => {
+                    const rawValue = event.target.value;
+                    if (rawValue.trim() === "") {
+                      setSearchOptions((current) => ({
+                        ...current,
+                        maxListings: undefined,
+                      }));
+                      return;
+                    }
+
+                    const parsedValue = Number(rawValue);
+                    setSearchOptions((current) => ({
+                      ...current,
+                      maxListings: Number.isFinite(parsedValue) ? parsedValue : undefined,
+                    }));
+                  }}
+                  placeholder="No limit"
+                  className="w-56 rounded-xl border border-border px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Blocking fetch error */}
