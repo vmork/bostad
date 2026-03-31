@@ -1,7 +1,7 @@
+import logging
 import re
 from datetime import datetime
-import logging
-from typing import Any, Optional as Opt
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
@@ -43,7 +43,7 @@ class ListingsFetchException(Exception):
 # ----- Listing Merge Helpers -----
 
 
-def _scraped_updates(scraped_data: "_ScrapedListingPageData") -> dict[str, Any]:
+def _scraped_updates(scraped_data: _ScrapedListingPageData) -> dict[str, Any]:
     """Return typed non-null scraped fields for safe Listing model updates.
 
     We intentionally avoid model_dump() here, because model_copy(update=...) does not
@@ -71,14 +71,14 @@ def _dedupe_keep_order(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
 
-def _parse_iso_datetime(value: str) -> Opt[datetime]:
+def _parse_iso_datetime(value: str) -> datetime|None:
     try:
         return datetime.fromisoformat(value.strip())
     except ValueError:
         return None
 
 
-def _parse_numeric_text(value: str) -> Opt[float]:
+def _parse_numeric_text(value: str) -> float|None:
     """Parse numbers that may contain spaces or suffix text, e.g. '600 000 kronor'."""
     digits = re.sub(r"\D", "", value)
     if not digits:
@@ -86,7 +86,7 @@ def _parse_numeric_text(value: str) -> Opt[float]:
     return float(digits)
 
 
-def _extract_image_urls(soup: BeautifulSoup) -> Opt[list[str]]:
+def _extract_image_urls(soup: BeautifulSoup) -> list[str]|None:
     slider = soup.select_one(".image-slider")
     if slider is None:
         return None
@@ -100,7 +100,7 @@ def _extract_image_urls(soup: BeautifulSoup) -> Opt[list[str]]:
     return image_urls or None
 
 
-def _extract_floorplan_url(soup: BeautifulSoup) -> Opt[str]:
+def _extract_floorplan_url(soup: BeautifulSoup) -> str|None:
     for anchor in soup.select("a[href]"):
         href = _attribute_as_str(anchor.get("href"))
         link_text = " ".join(
@@ -118,7 +118,7 @@ def _extract_floorplan_url(soup: BeautifulSoup) -> Opt[str]:
     return None
 
 
-def _extract_free_text(soup: BeautifulSoup) -> Opt[str]:
+def _extract_free_text(soup: BeautifulSoup) -> str|None:
     content = soup.select_one(".main-body__content")
     if content is None:
         return None
@@ -154,17 +154,17 @@ def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
     return items
 
 
-def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
+def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements|None:
     requirement_items = _extract_requirement_items(soup)
     page_text = soup.get_text(" ", strip=True)
     if not requirement_items and not page_text:
         return None
 
     student = False
-    age_min: Opt[float] = None
-    age_max: Opt[float] = None
-    income_min: Opt[float] = None
-    num_tenants_max: Opt[float] = None
+    age_min: float|None = None
+    age_max: float|None = None
+    income_min: float|None = None
+    num_tenants_max: float|None = None
 
     for item in requirement_items:
         item_lower = item.lower()
@@ -190,12 +190,11 @@ def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
 
     # Youth listings often encode the age interval in descriptive text
     # ('mellan 18 och 30 år') instead of only the structured requirement list.
-    if age_min is None or age_max is None:
-        if match := re.search(r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE):
-            if age_min is None:
-                age_min = float(match.group(1))
-            if age_max is None:
-                age_max = float(match.group(2))
+    if (age_min is None or age_max is None) and (match := re.search(r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE)):
+        if age_min is None:
+            age_min = float(match.group(1))
+        if age_max is None:
+            age_max = float(match.group(2))
 
     has_structured_requirements = (
         any(value is not None for value in [age_min, age_max, income_min, num_tenants_max])
@@ -217,9 +216,9 @@ def _extract_requirements(soup: BeautifulSoup) -> Opt[TenantRequirements]:
     )
 
 
-def _extract_queue_position(soup: BeautifulSoup) -> Opt[QueuePosition]:
-    my_position: Opt[int] = None
-    total: Opt[int] = None
+def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition|None:
+    my_position: int|None = None
+    total: int|None = None
 
     # Logged-in listing pages expose queue position in the dedicated
     # "preliminär köplats" widget.
@@ -300,7 +299,7 @@ def _extract_queue_position(soup: BeautifulSoup) -> Opt[QueuePosition]:
     return None
 
 
-def _parse_optional_int(value: Any) -> Opt[int]:
+def _parse_optional_int(value: Any) -> int|None:
     """Best-effort integer parsing for queue fields that may be strings."""
     if isinstance(value, bool):
         return None
@@ -315,7 +314,7 @@ def _parse_optional_int(value: Any) -> Opt[int]:
     return None
 
 
-def _extract_queue_signals_from_json(data: dict[str, Any]) -> Opt[QueuePosition]:
+def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueuePosition|None:
     """Extract queue signals available in index JSON.
 
     Currently only HarBraChans is used from JSON. Queue position values are
@@ -371,13 +370,13 @@ def _extract_html_listing_features(soup: BeautifulSoup) -> ListingFeatures:
 
     labels = _extract_feature_labels(soup)
 
-    kitchen: Opt[bool] = None
+    kitchen: bool|None = None
     if any(_is_explicit_negative_feature(label, "kök") for label in labels):
         kitchen = False
     elif any("kök" in label for label in labels):
         kitchen = True
 
-    bathroom: Opt[bool] = None
+    bathroom: bool|None = None
     if any(_is_explicit_negative_feature(label, "badrum") for label in labels):
         bathroom = False
     elif any("badrum" in label for label in labels):
@@ -464,13 +463,13 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
 
 
 class _ScrapedListingPageData(CamelModel):
-    rental_period: Opt[DateRange] = None
-    queue_position: Opt[QueuePosition] = None
-    requirements: Opt[TenantRequirements] = None
-    image_urls: Opt[list[str]] = None
-    floorplan_url: Opt[str] = None
-    free_text: Opt[str] = None
-    features: Opt[ListingFeatures] = None
+    rental_period: DateRange|None = None
+    queue_position: QueuePosition|None = None
+    requirements: TenantRequirements|None = None
+    image_urls: list[str]|None = None
+    floorplan_url: str|None = None
+    free_text: str|None = None
+    features: ListingFeatures|None = None
 
 
 def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
@@ -558,7 +557,7 @@ async def parse_listing_async(
 
 
 async def scrape_all_listings(
-    progress_callback: Opt[ProgressCallback] = None,
+    progress_callback: ProgressCallback|None = None,
 ) -> AllListingsResponse:
     from app.scraping.core import scrape_source_listings
     from app.scraping.sources.bostadsthlm import BostadSthlmSource
@@ -572,7 +571,7 @@ async def scrape_all_listings(
 
 async def scrape_all_listings_with_options(
     options: ListingsSearchOptions,
-    progress_callback: Opt[ProgressCallback] = None,
+    progress_callback: ProgressCallback|None = None,
 ) -> AllListingsResponse:
     """New typed entrypoint used by API handlers with JSON search options."""
     from app.scraping.core import scrape_source_listings

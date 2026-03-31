@@ -4,6 +4,7 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListingSources } from './listingSources';
 import type { ListingsSearchOptionsMaxListings } from './listingsSearchOptionsMaxListings';
 import type { ListingsSearchOptionsCookie } from './listingsSearchOptionsCookie';
 
@@ -11,13 +12,13 @@ import type { ListingsSearchOptionsCookie } from './listingsSearchOptionsCookie'
  * Typed search options for listing fetch requests.
 
 The API accepts a list to be forward-compatible with multi-source scraping,
-but currently only the single source "bostadsthlm" is supported.
+but currently only one built-in source is supported.
 
 `max_listings` can be used during debugging to parse only the first N
 listing index items. It defaults to None, which parses all listings.
  */
 export interface ListingsSearchOptions {
-  sources?: 'bostadsthlm'[];
+  sources?: ListingSources[];
   maxListings?: ListingsSearchOptionsMaxListings;
   cookie?: ListingsSearchOptionsCookie;
 }

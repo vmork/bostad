@@ -60,7 +60,7 @@ class MyModel(CamelModel):
 
 - Use the `cn()` utility from `src/lib/utils.ts` for conditional Tailwind classes
 - Theme variables defined in `src/index.css` under `@theme` (e.g., `--color-primary`)
-- Design tokens: `bg-background`, `text-foreground`, `text-muted`, `border-border`, `bg-primary`
+- Design tokens: `bg-background`, `text-gs-0`, `text-muted`, `border-gs-2`, `bg-primary`
 
 ### API Consumption
 

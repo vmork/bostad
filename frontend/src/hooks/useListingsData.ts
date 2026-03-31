@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { AllListingsResponse } from "../api/models";
+import { ListingSources, type AllListingsResponse } from "../api/models";
 import {
   cacheKeyForSource,
   LISTINGS_STREAM_URL,
@@ -26,14 +26,19 @@ interface UseListingsDataResult {
   progress: ScrapeProgress | null;
   loggedIn: boolean | null;
   startListingsStream: (options?: ListingsStreamOptions) => void;
+  newListingIds: Set<string>;
+  refreshDelta: {
+    added: number;
+    removed: number;
+  }; // auto-clears after 60s
 }
 
 export function useListingsData(): UseListingsDataResult {
-  const source = "bostadsthlm" as const;
+  const source = ListingSources.bostadsthlm;
   const cacheKey = cacheKeyForSource(source);
 
-  const [cachedListings, setCachedListings] = useState<CachedListings | null>(
-    () => readCachedListings(cacheKey),
+  const [cachedListings, setCachedListings] = useState<CachedListings | null>(() =>
+    readCachedListings(cacheKey),
   );
   const [progress, setProgress] = useState<ScrapeProgress | null>(null);
   const [isFetching, setIsFetching] = useState(false);
@@ -46,6 +51,9 @@ export function useListingsData(): UseListingsDataResult {
   });
   const closeStreamRef = useRef<(() => void) | null>(null);
   const latestLoggedInRef = useRef<boolean | null>(loggedIn);
+  const newCountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [newListingIds, setNewListingIds] = useState<Set<string>>(new Set());
+  const [refreshDelta, setRefreshDelta] = useState({ added: 0, removed: 0 });
 
   useEffect(() => {
     latestLoggedInRef.current = loggedIn;
@@ -55,6 +63,7 @@ export function useListingsData(): UseListingsDataResult {
     return () => {
       closeStreamRef.current?.();
       closeStreamRef.current = null;
+      if (newCountTimerRef.current) clearTimeout(newCountTimerRef.current);
     };
   }, []);
 
@@ -78,6 +87,28 @@ export function useListingsData(): UseListingsDataResult {
           }
         },
         onComplete: (payload) => {
+          // Detect new listings relative to previous cache
+          const oldIds = new Set(
+            (cachedListings?.data.listings ?? []).map((listing) => listing.id),
+          );
+          const nextIds = new Set(payload.listings.map((listing) => listing.id));
+          const addedIds = new Set(
+            payload.listings
+              .filter((listing) => !oldIds.has(listing.id))
+              .map((listing) => listing.id),
+          );
+          const removedCount = [...oldIds].filter((id) => !nextIds.has(id)).length;
+
+          setNewListingIds(addedIds);
+          setRefreshDelta({ added: addedIds.size, removed: removedCount });
+          if (newCountTimerRef.current) clearTimeout(newCountTimerRef.current);
+          if (addedIds.size > 0 || removedCount > 0) {
+            newCountTimerRef.current = setTimeout(
+              () => setRefreshDelta({ added: 0, removed: 0 }),
+              60_000,
+            );
+          }
+
           const nextCachedListings = {
             data: payload,
             updatedAt: new Date().toISOString(),
@@ -112,5 +143,7 @@ export function useListingsData(): UseListingsDataResult {
     progress,
     loggedIn,
     startListingsStream,
+    newListingIds,
+    refreshDelta,
   };
 }

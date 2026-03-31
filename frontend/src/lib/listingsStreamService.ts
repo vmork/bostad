@@ -1,7 +1,10 @@
-import type { AllListingsResponse } from "../api/models";
+import {
+  ListingSources as ListingSourceValues,
+  type AllListingsResponse,
+  type ListingSources,
+} from "../api/models";
 
 export const LISTINGS_STREAM_URL = "/api/all_listings/stream";
-const LEGACY_LISTINGS_CACHE_KEY = "bostad:listings-cache";
 
 export interface CachedListings {
   data: AllListingsResponse;
@@ -18,7 +21,7 @@ export interface ScrapeProgress {
   errors: number;
   loggedIn?: boolean | null;
   listingId?: string;
-  source?: "bostadsthlm";
+  source?: ListingSources;
   message?: string;
 }
 
@@ -29,12 +32,12 @@ export interface ListingsStreamEvent {
 }
 
 export interface ListingsStreamOptions {
-  sources?: ["bostadsthlm"];
+  sources?: ListingSources[];
   maxListings?: number;
   cookie?: string;
 }
 
-export function cacheKeyForSource(source: "bostadsthlm"): string {
+export function cacheKeyForSource(source: ListingSources): string {
   return `bostad:listings-cache:${source}`;
 }
 
@@ -43,9 +46,7 @@ export function readCachedListings(cacheKey: string): CachedListings | null {
     return null;
   }
 
-  const rawValue =
-    window.localStorage.getItem(cacheKey) ??
-    window.localStorage.getItem(LEGACY_LISTINGS_CACHE_KEY);
+  const rawValue = window.localStorage.getItem(cacheKey);
   if (!rawValue) {
     return null;
   }
@@ -179,7 +180,9 @@ export function openListingsStream(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(options ?? { sources: ["bostadsthlm"] }),
+        body: JSON.stringify(
+          options ?? { sources: [ListingSourceValues.bostadsthlm] },
+        ),
         signal: abortController.signal,
       });
 

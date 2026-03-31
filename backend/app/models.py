@@ -1,7 +1,9 @@
+from datetime import datetime
+from enum import StrEnum
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
-from datetime import datetime
-from typing import Literal, Optional as Opt
 
 
 class CamelModel(BaseModel):
@@ -19,40 +21,40 @@ class Coordinates(CamelModel):
 
 
 class Range(CamelModel):
-    min: Opt[float] = None
-    max: Opt[float] = None
+    min: float | None = None
+    max: float | None = None
 
 
 class DateRange(CamelModel):
-    min: Opt[datetime] = None
-    max: Opt[datetime] = None
+    min: datetime | None = None
+    max: datetime | None = None
 
 
 class QueuePosition(CamelModel):
-    my_position: Opt[int] = None
-    total: Opt[int] = None
-    oldest_queue_dates: Opt[list[datetime]] = (
+    my_position: int | None = None
+    total: int | None = None
+    oldest_queue_dates: list[datetime] | None = (
         None  # sorted array of oldest queue dates, olest first
     )
-    has_good_chance: Opt[bool] = None
+    has_good_chance: bool | None = None
 
 
 class TenantRequirements(CamelModel):
     student: bool
-    age_range: Opt[Range] = None
-    income_range: Opt[Range] = None
-    num_tenants_range: Opt[Range] = None
+    age_range: Range | None = None
+    income_range: Range | None = None
+    num_tenants_range: Range | None = None
 
 
 class ListingFeatures(CamelModel):
     # should always be available in json response
-    balcony: Opt[bool] = None
-    elevator: Opt[bool] = None
-    new_production: Opt[bool] = None
+    balcony: bool | None = None
+    elevator: bool | None = None
+    new_production: bool | None = None
 
     # not in json but can be scraped from listing page under "Egenskaper"
-    kitchen: Opt[bool] = None
-    bathroom: Opt[bool] = None
+    kitchen: bool | None = None
+    bathroom: bool | None = None
     # if these are not present, assume not available
     dishwasher: bool = False
     washing_machine: bool = False
@@ -73,51 +75,57 @@ class Listing(CamelModel):
     features: ListingFeatures = Field(default_factory=ListingFeatures)
 
     # Misc
-    floor: Opt[
-        int
-    ]  # under "Vaning", can be negative, doesnt exist for multi-apt listings
-    rental_period: Opt[DateRange] = None
-    coords: Opt[Coordinates] = None
-    application_deadline: Opt[datetime] = None
-    queue_position: Opt[QueuePosition] = None
-    requirements: Opt[TenantRequirements] = None
-    date_posted: Opt[datetime] = None
-    image_urls: Opt[list[str]] = None
-    floorplan_url: Opt[str] = None
-    free_text: Opt[str] = None
+    floor: float | None  # under "Vaning", can be negative or fractional, absent only for multi-apt listings
+    rental_period: DateRange | None = None
+    coords: Coordinates | None = None
+    application_deadline: datetime | None = None
+    queue_position: QueuePosition | None = None
+    requirements: TenantRequirements | None = None
+    date_posted: datetime | None = None
+    image_urls: list[str] | None = None
+    floorplan_url: str | None = None
+    free_text: str | None = None
 
     # For listings with multiple apartments
-    num_apartments: Opt[int] = None
-    rent_range: Opt[Range] = None
-    area_sqm_range: Opt[Range] = None
+    num_apartments: int | None = None
+    rent_range: Range | None = None
+    area_sqm_range: Range | None = None
+
+
 
 
 class ListingParseError(CamelModel):
     id: str
+    url: str|None = None
     reason: str
 
 
 ApartmentType = Literal["regular", "youth", "student", "senior"]
-ListingSource = Literal["bostadsthlm"]
+
+
+class ListingSources(StrEnum):
+    """Supported listing source identifiers shared across the API."""
+
+    BOSTAD_STHLM = "bostadsthlm"
 
 
 class ListingsSearchOptions(CamelModel):
     """Typed search options for listing fetch requests.
 
     The API accepts a list to be forward-compatible with multi-source scraping,
-    but currently only the single source "bostadsthlm" is supported.
+    but currently only one built-in source is supported.
 
     `max_listings` can be used during debugging to parse only the first N
     listing index items. It defaults to None, which parses all listings.
     """
 
-    sources: list[ListingSource] = Field(default_factory=lambda: ["bostadsthlm"])
-    max_listings: Opt[int] = Field(default=None, ge=1)
-    cookie: Opt[str] = None
+    sources: list[ListingSources] = Field(default_factory=lambda: [ListingSources.BOSTAD_STHLM])
+    max_listings: int | None = Field(default=None, ge=1)
+    cookie: str | None = None
 
     @field_validator("sources")
     @classmethod
-    def _validate_sources(cls, sources: list[ListingSource]) -> list[ListingSource]:
+    def _validate_sources(cls, sources: list[ListingSources]) -> list[ListingSources]:
         if not sources:
             raise ValueError("At least one source must be provided")
         if len(sources) != 1:
@@ -126,7 +134,7 @@ class ListingsSearchOptions(CamelModel):
 
     @field_validator("cookie")
     @classmethod
-    def _normalize_cookie(cls, cookie: Opt[str]) -> Opt[str]:
+    def _normalize_cookie(cls, cookie: str | None) -> str | None:
         """Normalize user-provided cookie input from UI/curl snippets.
 
         We accept plain cookie strings and also tolerate common pasted forms,
@@ -145,11 +153,7 @@ class ListingsSearchOptions(CamelModel):
         if normalized.startswith("-b "):
             normalized = normalized[3:].strip()
 
-        if (
-            len(normalized) >= 2
-            and normalized[0] == normalized[-1]
-            and normalized[0] in {"'", '"'}
-        ):
+        if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
             normalized = normalized[1:-1].strip()
 
         normalized = " ".join(normalized.replace("\r", " ").replace("\n", " ").split())
@@ -164,19 +168,19 @@ class ScrapeProgress(CamelModel):
     current: int
     total: int
     errors: int = 0
-    logged_in: Opt[bool] = None
-    listing_id: Opt[str] = None
-    source: Opt[ListingSource] = None
-    message: Opt[str] = None
+    logged_in: bool | None = None
+    listing_id: str | None = None
+    source: ListingSources | None = None
+    message: str | None = None
 
 
 class AllListingsResponse(CamelModel):
     listings: list[Listing]
     errors: list[ListingParseError]
-    logged_in: Opt[bool] = None
+    logged_in: bool | None = None
 
 
 class ListingsStreamEvent(CamelModel):
     event: ScrapeEventStatus
     progress: ScrapeProgress
-    data: Opt[AllListingsResponse] = None
+    data: AllListingsResponse | None = None

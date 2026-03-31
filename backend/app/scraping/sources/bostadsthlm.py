@@ -1,24 +1,25 @@
-from datetime import datetime
 import logging
+import time
 from typing import Any
 
 import httpx
 
-from app.models import Listing, ListingsSearchOptions
+from app.models import Listing, ListingSources, ListingsSearchOptions
 from app.scrape_bostadsthlm import (
     BOSTAD_STHLM_BASE_PATH,
     LISTINGS_TIMEOUT,
     ListingsFetchException,
     parse_listing_async,
 )
+from app.scraping.core import ListingSource
 
 logger = logging.getLogger(__name__)
 
 
-class BostadSthlmSource:
+class BostadSthlmSource(ListingSource):
     """Source implementation for bostad.stockholm.se listings."""
 
-    source_id = "bostadsthlm"
+    source_id: ListingSources = ListingSources.BOSTAD_STHLM
 
     async def fetch_listing_index(
         self,
@@ -32,26 +33,30 @@ class BostadSthlmSource:
 
         listings_url = f"{BOSTAD_STHLM_BASE_PATH}/AllaAnnonser/"
         logger.info(f"[{self.source_id}] Fetching listings index from {listings_url}")
-        started_at = datetime.now()
+        started_at = time.time()
         try:
-            response = await client.get(listings_url, timeout=LISTINGS_TIMEOUT, )
+            response = await client.get(
+                listings_url,
+                timeout=LISTINGS_TIMEOUT,
+            )
             response.raise_for_status()
         except httpx.HTTPError as error:
             logger.error(
                 f"[{self.source_id}] Failed to fetch listings index from {listings_url}: {error}"
             )
-            raise ListingsFetchException(
-                f"Failed to fetch {listings_url}: {error}"
-            ) from error
+            raise ListingsFetchException(f"Failed to fetch {listings_url}: {error}") from error
 
         logger.info(
             f"[{self.source_id}] Fetched listings index in "
-            f"{(datetime.now() - started_at).total_seconds():.2f} seconds, parsing JSON payload"
+            f"{time.time() - started_at:.2f} seconds, parsing JSON payload"
         )
         return response.json()
 
     def get_listing_id(self, item: dict[str, Any]) -> str:
         return str(item.get("AnnonsId", "unknown"))
+    
+    def get_listing_url(self, item: dict[str, Any]) -> str | None:
+        return f"{BOSTAD_STHLM_BASE_PATH}/bostad/{item.get('AnnonsId')}" if item.get("AnnonsId") else None
 
     async def parse_listing(
         self,

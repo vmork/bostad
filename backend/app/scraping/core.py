@@ -1,21 +1,21 @@
 import asyncio
 import logging
-from datetime import datetime
-from typing import Any, Optional as Opt
+import time
+from typing import Any
 
 import httpx
 from pydantic import ValidationError
 
-from app.scraping.client import create_async_client
 from app.models import (
     AllListingsResponse,
     Listing,
     ListingParseError,
-    ListingsStreamEvent,
     ListingsSearchOptions,
+    ListingsStreamEvent,
     ScrapeEventStatus,
     ScrapeProgress,
 )
+from app.scraping.client import create_async_client
 from app.scraping.types import ListingSource, ProgressCallback
 
 MAX_CONCURRENT_DETAIL_FETCHES = 12
@@ -63,10 +63,10 @@ def _parse_cookie_header(cookie_header: str) -> dict[str, str]:
 
 async def _emit_progress(
     source: ListingSource,
-    progress_callback: Opt[ProgressCallback],
+    progress_callback: ProgressCallback|None,
     event: ScrapeEventStatus,
     progress: ScrapeProgress,
-    data: Opt[AllListingsResponse] = None,
+    data: AllListingsResponse|None = None,
 ) -> None:
     if progress_callback is None:
         return
@@ -86,21 +86,25 @@ async def _parse_listing_task(
     item: dict[str, Any],
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
-) -> tuple[int, Opt[Listing], Opt[ListingParseError]]:
+) -> tuple[int, Listing|None, ListingParseError|None]:
     listing_id = source.get_listing_id(item)
 
     try:
         async with semaphore:
             listing = await source.parse_listing(item, client)
         return index, listing, None
-    except (ValidationError, Exception) as error:
-        return index, None, ListingParseError(id=listing_id, reason=str(error))
+    except (ValidationError, Exception) as error:  # noqa: BLE001
+        logger.warning(
+            f"[{source.source_id}] Failed to parse listing {listing_id}: "
+            f"{error.__class__.__name__}: {error}"
+        )
+        return index, None, ListingParseError(id=listing_id, reason=str(error), url=source.get_listing_url(item))
 
 
 async def scrape_source_listings(
     source: ListingSource,
     options: ListingsSearchOptions,
-    progress_callback: Opt[ProgressCallback] = None,
+    progress_callback: ProgressCallback|None = None,
 ) -> AllListingsResponse:
     """Generic orchestration for scraping one source with bounded concurrency."""
     async with create_async_client() as client:
@@ -118,10 +122,10 @@ async def scrape_source_listings(
         else:
             logger.info(f"[{source.source_id}] No cookie provided; fetching index anonymously")
 
-        started_at = datetime.now()
+        started_at = time.time()
         data = await source.fetch_listing_index(client, options)
 
-        logged_in: Opt[bool] = None
+        logged_in: bool|None = None
         if data:
             first_index_item = data[0]
             if isinstance(first_index_item, dict):
@@ -161,7 +165,7 @@ async def scrape_source_listings(
 
         for completed_task in asyncio.as_completed(tasks):
             index, listing, error = await completed_task
-            completed += 1
+            completed += 1  # noqa: SIM113
 
             if listing is not None:
                 indexed_listings.append((index, listing))
@@ -197,7 +201,7 @@ async def scrape_source_listings(
 
         logger.info(
             f"[{source.source_id}] Parsed {len(listings)} listings with {len(errors)} errors "
-            f"in {(datetime.now() - started_at).total_seconds():.2f} seconds "
+            f"in {time.time() - started_at:.2f} seconds "
             f"(index items available: {total_index_items}, limit: {limit})"
         )
         await _emit_progress(

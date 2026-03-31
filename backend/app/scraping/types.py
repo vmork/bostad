@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable
-from typing import Any, Optional as Opt, Protocol
+from typing import Any, Protocol
 
 import httpx
 
-from app.models import Listing, ListingsStreamEvent, ListingsSearchOptions
+from app.models import Listing, ListingSources, ListingsSearchOptions, ListingsStreamEvent
 
 ProgressCallback = Callable[[ListingsStreamEvent], Awaitable[None]]
 
@@ -11,7 +11,7 @@ ProgressCallback = Callable[[ListingsStreamEvent], Awaitable[None]]
 class ListingSource(Protocol):
     """Contract for source-specific listing implementations."""
 
-    source_id: str
+    source_id: ListingSources
 
     async def fetch_listing_index(
         self,
@@ -23,6 +23,10 @@ class ListingSource(Protocol):
 
     def get_listing_id(self, item: dict[str, Any]) -> str:
         """Return the stable listing identifier for progress and errors."""
+        ...
+    
+    def get_listing_url(self, item: dict[str, Any]) -> str | None:
+        """Return the listing URL for error reporting, if available."""
         ...
 
     async def parse_listing(

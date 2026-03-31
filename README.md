@@ -1,24 +1,18 @@
 ## TODO
-### Backend specific
-- Cookie bug
-- Improve options dropdown, reusable components for sorting/filtering
 
-- Sorting
-- Filters
-  - Range for numeric values
-  - multiselect for categories
-  - toggle for boolean 
-  - Map based filter
+- floor multi apts pick highest
+- update search options to match filter/sort
+- link no visited color showing currently
+- x btn more left
+- visning "inte att ha någon visning" "kommer inte att visas", planlösning, bilder booleans
+- stats based on selected filters
+- allow null toggle on all
+- balcony not displayed
 
-- Notification area
-  - Indication after fetching successfully, number of listings added and removed
+- ** area filter **
 
-- Show all errors in single expandable error section (collapsed by default), improve ListingError component 
 
-- where to put expand button and add to collection button
-  - prob under same popup atleast
-- do expanded view
-  - images/floorplan (if possible?), free text
-- Feat: save listings to personal collection
+Personal page
+- save/favorite listings to personal collection
   - Need db or just localstorage?
-- Feat: "bevakning", feed of relevant new listings sorted by recent
+- "bevakning", feed of filtered new listings sorted by recent

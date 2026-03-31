@@ -1,6 +1,8 @@
 import type { Listing, Range } from "../api/models";
 import { UserRoundIcon, Clock3Icon, InfoIcon, PlusIcon } from "lucide-react";
-import { formatDuration, cn } from "../lib/utils";
+import { formatDuration, numberWithSuffix } from "../lib/utils";
+import { Pill } from "./generic/Pill";
+import { memo } from "react";
 
 function rangeExists(range: Range | null | undefined): range is Partial<Range> {
   return range?.min !== undefined || range?.max !== undefined;
@@ -20,27 +22,6 @@ function formatRangeString(range: Range): string {
   return "";
 }
 
-function Pill({
-  children,
-  style,
-}: {
-  children: React.ReactNode;
-  style?: "highlight-yellow" | "highlight-green" | "highlight-red" | "default";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-w-fit items-center rounded-md bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600 border border-gray-300",
-        style === "highlight-yellow" && "border border-yellow-600",
-        style === "highlight-green" && "border border-green-600",
-        style === "highlight-red" && "border border-red-600",
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
 type SectionIconKind = "info" | "extras" | "requirements" | "queue";
 
 function SectionIcon({ kind }: { kind: SectionIconKind }) {
@@ -56,16 +37,14 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
   const Icon = iconByKind[kind];
 
   return (
-    <span className="mt-1 inline-flex h-4 w-4 text-muted" aria-hidden="true">
+    <span className="mt-1 inline-flex h-4 w-4 text-gs-3" aria-hidden="true">
       <Icon className="h-4 w-4" />
     </span>
   );
 }
 
-export function Listing({ listing: lg }: { listing: Listing }) {
-  const timeSincePost = lg.datePosted
-    ? Date.now() - new Date(lg.datePosted).getTime()
-    : null;
+const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Listing; isNew?: boolean }) {
+  const timeSincePost = lg.datePosted ? Date.now() - new Date(lg.datePosted).getTime() : null;
 
   const singleApartment = (lg.numApartments ?? 1) === 1;
 
@@ -95,22 +74,21 @@ export function Listing({ listing: lg }: { listing: Listing }) {
     : null;
 
   const hasQueueInfo =
-    (lg.queuePosition?.myPosition != null &&
-      lg.queuePosition?.total != null) ||
+    (lg.queuePosition?.myPosition != null && lg.queuePosition?.total != null) ||
     longestQueueTimeMs !== null ||
     lg.queuePosition?.hasGoodChance === true;
 
   return (
-    <div className="rounded-lg border-2 border-gray-300 bg-white p-2 flex flex-col relative">
+    <div className="rounded-lg border border-gs-3/50 bg-gs-0/50 px-2 py-2 flex flex-col relative">
       {/* Row 1: header */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 items-center sm:grid-rows-1">
         {/* title (street name) */}
-        <span className="min-w-0 text-lg font-medium">
+        <span className="min-w-0 text-lg font-medium w-fit">
           <a
             href={lg.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block truncate underline decoration-1"
+            className="block truncate underline decoration-1 hover:decoration-2 text-dark"
           >
             {lg.name}
           </a>
@@ -121,33 +99,32 @@ export function Listing({ listing: lg }: { listing: Listing }) {
         </span>
         {/* recency */}
         {timeSincePost !== null && (
-          <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-sm text-muted sm:col-start-3 sm:row-start-1">
+          <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-sm text-gs-3 sm:col-start-3 sm:row-start-1">
             {formatDuration(timeSincePost)}
+            {isNew && <span className="text-primary ml-1.5 font-medium">(new)</span>}
           </span>
         )}
       </div>
 
       {/* Row 2: details */}
-      <div className="mt-2 flex flex-col gap-y-2">
+      <div className="mt-2 mb-1.5 flex flex-col gap-y-2">
         {/* info */}
         <div className="flex items-start gap-1.5">
           <SectionIcon kind="info" />
           <div className="flex flex-wrap gap-1.5">
             <Pill>
               {rangeExists(lg.rentRange)
-                ? `${formatRangeString(lg.rentRange)} kr/mån`
-                : `${lg.rent} kr/mån`}
+                ? `${formatRangeString(lg.rentRange)} kr/month`
+                : `${lg.rent} kr/month`}
             </Pill>
             <Pill>
               {rangeExists(lg.areaSqmRange)
                 ? `${formatRangeString(lg.areaSqmRange)} m²`
                 : `${lg.areaSqm} m²`}
             </Pill>
-            <Pill>{lg.numRooms} rum</Pill>
-            {!singleApartment && <Pill>{lg.numApartments} lgh</Pill>}
-            {lg.floor !== null && lg.floor !== undefined && (
-              <Pill>Floor: {lg.floor}</Pill>
-            )}
+            <Pill>{lg.numRooms} {lg.numRooms === 1 ? "room" : "rooms"}</Pill>
+            {!singleApartment && <Pill>{lg.numApartments} apts</Pill>}
+            {lg.floor != null && <Pill>{numberWithSuffix(lg.floor)} floor</Pill>}
           </div>
         </div>
 
@@ -157,17 +134,16 @@ export function Listing({ listing: lg }: { listing: Listing }) {
             <SectionIcon kind="requirements" />
             <div className="flex flex-wrap gap-1.5">
               {lg.apartmentType !== "regular" && (
-                <Pill style="highlight-yellow">Type: {lg.apartmentType}</Pill>
+                <Pill type="highlight-yellow">Type: {lg.apartmentType}</Pill>
               )}
               {rangeExists(lg.requirements?.ageRange) && (
-                <Pill style="highlight-yellow">
+                <Pill type="highlight-yellow">
                   Age: {formatRangeString(lg.requirements.ageRange)} years old
                 </Pill>
               )}
               {rangeExists(lg.requirements?.incomeRange) && (
-                <Pill style="highlight-yellow">
-                  Income: {formatRangeString(lg.requirements.incomeRange)}{" "}
-                  kr/year
+                <Pill type="highlight-yellow">
+                  Income: {formatRangeString(lg.requirements.incomeRange)} kr/year
                 </Pill>
               )}
             </div>
@@ -184,18 +160,14 @@ export function Listing({ listing: lg }: { listing: Listing }) {
                 lg.queuePosition?.total !== undefined &&
                 lg.queuePosition?.total !== null && (
                   <Pill>
-                    Position: {lg.queuePosition.myPosition} /{" "}
-                    {lg.queuePosition.total}
+                    Position: {lg.queuePosition.myPosition} / {lg.queuePosition.total}
                   </Pill>
                 )}
               {longestQueueTimeMs !== null && (
-                <Pill>
-                  Longest: {Math.floor(longestQueueTimeMs / (1000 * 3600 * 24))}{" "}
-                  days
-                </Pill>
+                <Pill>Longest: {Math.floor(longestQueueTimeMs / (1000 * 3600 * 24))} days</Pill>
               )}
               {lg.queuePosition?.hasGoodChance === true && (
-                <Pill style="highlight-green">Good chance</Pill>
+                <Pill type="highlight-green">Good chance</Pill>
               )}
             </div>
           </div>
@@ -207,14 +179,12 @@ export function Listing({ listing: lg }: { listing: Listing }) {
             <SectionIcon kind="extras" />
             <div className="flex flex-wrap gap-1.5">
               {missingCriticalFeatures.map((feature) => (
-                <Pill key={feature} style="highlight-red">
+                <Pill key={feature} type="highlight-red">
                   {feature}
                 </Pill>
               ))}
               {availableApplianceFeatures.map((feature) => (
-                <Pill key={feature}>
-                  {feature}
-                </Pill>
+                <Pill key={feature}>{feature}</Pill>
               ))}
             </div>
           </div>
@@ -222,4 +192,7 @@ export function Listing({ listing: lg }: { listing: Listing }) {
       </div>
     </div>
   );
-}
+})
+
+export { ListingUI };
+

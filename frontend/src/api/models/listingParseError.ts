@@ -4,8 +4,10 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListingParseErrorUrl } from './listingParseErrorUrl';
 
 export interface ListingParseError {
   id: string;
+  url?: ListingParseErrorUrl;
   reason: string;
 }

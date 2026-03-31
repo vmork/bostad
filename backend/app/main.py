@@ -74,7 +74,7 @@ async def _all_listings_stream_with_options(
                 options=options,
                 progress_callback=emit_progress,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             progress = last_progress or ScrapeProgress(
                 status="failed", current=0, total=0
             )

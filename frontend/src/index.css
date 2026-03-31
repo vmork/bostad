@@ -2,18 +2,26 @@
 
 @theme {
   /* Colors */
-  --color-background: #fafafa;
-  --color-foreground: #0a0a0a;
-  --color-muted: #737373;
   --color-border: #e5e5e5;
-  --color-primary: #2563eb;
-  --color-primary-foreground: #ffffff;
+
+  --color-gs-0: #fafafafa;
+  --color-gs-1: #f3f4f6;
+  --color-gs-2: #e5e5e5;
+  --color-gs-3: #737373;
+  --color-gs-4: #494950;
+  --color-dark: #0a0a0a;
+
+  --color-orange-1: #d97706;
+  --color-green-1: #16a34a;
+  --color-red-1: #cd5757;
+  --color-primary: #6280c0;
 
   /* Font family */
   --font-sans: "Fira Code", ui-monospace, monospace;
   --font-mono: "Fira Code", ui-monospace, monospace;
 
   /* Font sizes */
+  --text-xxs: 0.65rem;
   --text-xs: 0.7rem;
   --text-sm: 0.8rem;
   --text-base: 0.85rem;
@@ -21,13 +29,26 @@
   --text-xl: 1.1rem;
   --text-2xl: 1.3rem;
   --text-3xl: 1.5rem;
-  --text-4xl: 2.rem;
+  --text-4xl: 2rem;
+}
+
+@layer utilities {
+  .no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 /* Base styles */
 html {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--color-gs-0);
+  color: var(--color-dark);
 }
 
 body {
@@ -36,4 +57,8 @@ body {
   word-spacing: -2px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+input:focus {
+  outline: 1px solid var(--color-primary);
 }
