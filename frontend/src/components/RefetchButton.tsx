@@ -2,6 +2,7 @@ import { SettingsIcon } from "lucide-react";
 import { ListingSources } from "../api/models";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import type { ListingsStreamOptions, ScrapeProgress } from "../lib/listingsStreamService";
+import { cn } from "../lib/utils";
 import { FetchStatusBadge } from "./FetchStatusBadge";
 import { Button } from "./generic/Button";
 import { Dropdown } from "./generic/Dropdown";
@@ -30,38 +31,53 @@ function DataSettings({
     });
   };
 
+  // Whether any option deviates from defaults
+  const hasCustomOptions = searchOptions.cookie != null || searchOptions.maxListings != null;
+
   return (
     <Dropdown.Root triggerMode="hover" preferredSide="bottom" mobileBreakpoint={768} gap={5}>
       <Dropdown.Trigger asChild>
-        <Button variant="dark" size="large" className="w-fit rounded-l-none border-l-none">
-          <SettingsIcon size={15} className="text-gs-3" />
+        <Button
+          size="large"
+          className={cn(
+            "w-fit rounded-l-none border-l-0",
+            hasCustomOptions && "border-primary/60 bg-primary/10 text-primary",
+          )}
+        >
+          <SettingsIcon size={15} />
           <span className="mx-1 text-xs">Options</span>
         </Button>
       </Dropdown.Trigger>
 
-      <Dropdown.Content className="w-[min(22rem,calc(100vw-1.5rem))]">
+      <Dropdown.Content className="border border-gs-3/50 w-[min(22rem,calc(100vw-1.5rem))]">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-3 items-center gap-x-3 gap-y-2 px-3 py-3">
-          <span className="text-xs uppercase text-gs-3">Cookie:</span>
+          <span className="text-xs uppercase text-gs-4">Cookie:</span>
           <input
             type="text"
-            className="w-full rounded border border-gs-2 bg-background px-2 py-1.5 text-sm text-dark"
+            className={cn(
+              "w-full no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
+              searchOptions.cookie != null && "border-primary",
+            )}
             placeholder="Enter cookie"
             value={searchOptions.cookie ?? ""}
             onChange={(event) => handleCookieChange(event.target.value)}
           />
 
-          <span className="text-xs uppercase text-gs-3">Max listings:</span>
+          <span className="text-xs uppercase text-gs-4">Max listings:</span>
           <input
             type="number"
-            className="w-15 justify-self-end rounded border border-gs-2 bg-background px-2 py-1.5 text-right text-sm text-dark focus:border-green-50"
+            className={cn(
+              "w-15 justify-self-end no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
+              searchOptions.maxListings != null && "border-primary",
+            )}
             placeholder="∞"
             value={searchOptions.maxListings ?? ""}
             onChange={(event) => handleMaxListingsChange(event.target.value)}
             min={1}
           />
 
-          <span className="text-xs uppercase text-gs-3">Sources:</span>
-          <span className="text-sm justify-self-end text-dark">
+          <span className="text-xs uppercase text-gs-4">Sources:</span>
+          <span className="text-xs justify-self-end text-gs-4">
             {(searchOptions.sources ?? []).join(", ") || "None"}
           </span>
         </div>

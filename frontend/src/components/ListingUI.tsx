@@ -43,7 +43,13 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
   );
 }
 
-const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Listing; isNew?: boolean }) {
+const ListingUI = memo(function ListingUI({
+  listing: lg,
+  isNew,
+}: {
+  listing: Listing;
+  isNew?: boolean;
+}) {
   const timeSincePost = lg.datePosted ? Date.now() - new Date(lg.datePosted).getTime() : null;
 
   const singleApartment = (lg.numApartments ?? 1) === 1;
@@ -60,14 +66,18 @@ const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Lis
   ].filter((value): value is string => value !== null);
 
   // Only show appliance extras when they are explicitly present.
-  const availableApplianceFeatures = [
+  const bonusFeatures = [
     lg.features?.dishwasher ? "Dishwasher" : null,
     lg.features?.washingMachine ? "Washing machine" : null,
     lg.features?.dryer ? "Dryer" : null,
+    lg.features?.balcony ? "Balcony" : null,
+    lg.features?.newProduction ? "New production" : null,
+    lg.features?.hasViewing === true ? "Viewing" : null,
+    lg.features?.hasPictures ? "Pictures" : null,
+    lg.features?.hasFloorplan ? "Floorplan" : null,
   ].filter((value): value is string => value !== null);
 
-  const hasExtraFeatures =
-    missingCriticalFeatures.length > 0 || availableApplianceFeatures.length > 0;
+  const hasExtraFeatures = missingCriticalFeatures.length > 0 || bonusFeatures.length > 0;
 
   const longestQueueTimeMs = lg.queuePosition?.oldestQueueDates
     ? Date.now() - new Date(lg.queuePosition.oldestQueueDates[0]).getTime()
@@ -88,7 +98,7 @@ const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Lis
             href={lg.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block truncate underline decoration-1 hover:decoration-2 text-dark"
+            className="block truncate underline decoration-1 hover:decoration-2 text-dark visited:text-primary/10"
           >
             {lg.name}
           </a>
@@ -122,9 +132,19 @@ const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Lis
                 ? `${formatRangeString(lg.areaSqmRange)} m²`
                 : `${lg.areaSqm} m²`}
             </Pill>
-            <Pill>{lg.numRooms} {lg.numRooms === 1 ? "room" : "rooms"}</Pill>
+            <Pill>
+              {lg.numRooms} {lg.numRooms === 1 ? "room" : "rooms"}
+            </Pill>
             {!singleApartment && <Pill>{lg.numApartments} apts</Pill>}
-            {lg.floor != null && <Pill>{numberWithSuffix(lg.floor)} floor</Pill>}
+            {lg.floorRange?.min != null &&
+            lg.floorRange?.max != null &&
+            lg.floorRange.min !== lg.floorRange.max ? (
+              <Pill>
+                {numberWithSuffix(lg.floorRange.min)}-{numberWithSuffix(lg.floorRange.max)} floor
+              </Pill>
+            ) : (
+              lg.floor != null && <Pill>{numberWithSuffix(lg.floor)} floor</Pill>
+            )}
           </div>
         </div>
 
@@ -183,7 +203,7 @@ const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Lis
                   {feature}
                 </Pill>
               ))}
-              {availableApplianceFeatures.map((feature) => (
+              {bonusFeatures.map((feature) => (
                 <Pill key={feature}>{feature}</Pill>
               ))}
             </div>
@@ -192,7 +212,6 @@ const ListingUI = memo(function ListingUI({ listing: lg, isNew }: { listing: Lis
       </div>
     </div>
   );
-})
+});
 
 export { ListingUI };
-

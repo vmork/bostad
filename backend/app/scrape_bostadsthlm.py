@@ -28,6 +28,13 @@ DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 IMAGE_HREF_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:$|\?)", re.IGNORECASE)
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+FLOOR_RANGE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:-\s*(\d+(?:[.,]\d+)?))?\s*tr", re.IGNORECASE)
+VIEWING_NEGATION_RE = re.compile(
+    r"(?:inte|ingen|ej)\s+(?:att\s+)?(?:visas|visning|ha\s+någon\s+visning)", re.IGNORECASE
+)
+VIEWING_POSITIVE_RE = re.compile(
+    r"(?:öppen\s+visning|inbjuden\s+till\s+visning|visning\s+(?:av|i|på|den))", re.IGNORECASE
+)
 NEGATION_PREFIXES = ("ej ", "inte ", "ingen ", "inget ", "utan ", "saknar ")
 logger = logging.getLogger(__name__)
 
@@ -71,14 +78,14 @@ def _dedupe_keep_order(items: list[str]) -> list[str]:
     return list(dict.fromkeys(items))
 
 
-def _parse_iso_datetime(value: str) -> datetime|None:
+def _parse_iso_datetime(value: str) -> datetime | None:
     try:
         return datetime.fromisoformat(value.strip())
     except ValueError:
         return None
 
 
-def _parse_numeric_text(value: str) -> float|None:
+def _parse_numeric_text(value: str) -> float | None:
     """Parse numbers that may contain spaces or suffix text, e.g. '600 000 kronor'."""
     digits = re.sub(r"\D", "", value)
     if not digits:
@@ -86,7 +93,7 @@ def _parse_numeric_text(value: str) -> float|None:
     return float(digits)
 
 
-def _extract_image_urls(soup: BeautifulSoup) -> list[str]|None:
+def _extract_image_urls(soup: BeautifulSoup) -> list[str] | None:
     slider = soup.select_one(".image-slider")
     if slider is None:
         return None
@@ -100,7 +107,7 @@ def _extract_image_urls(soup: BeautifulSoup) -> list[str]|None:
     return image_urls or None
 
 
-def _extract_floorplan_url(soup: BeautifulSoup) -> str|None:
+def _extract_floorplan_url(soup: BeautifulSoup) -> str | None:
     for anchor in soup.select("a[href]"):
         href = _attribute_as_str(anchor.get("href"))
         link_text = " ".join(
@@ -118,7 +125,7 @@ def _extract_floorplan_url(soup: BeautifulSoup) -> str|None:
     return None
 
 
-def _extract_free_text(soup: BeautifulSoup) -> str|None:
+def _extract_free_text(soup: BeautifulSoup) -> str | None:
     content = soup.select_one(".main-body__content")
     if content is None:
         return None
@@ -154,17 +161,17 @@ def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
     return items
 
 
-def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements|None:
+def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements | None:
     requirement_items = _extract_requirement_items(soup)
     page_text = soup.get_text(" ", strip=True)
     if not requirement_items and not page_text:
         return None
 
     student = False
-    age_min: float|None = None
-    age_max: float|None = None
-    income_min: float|None = None
-    num_tenants_max: float|None = None
+    age_min: float | None = None
+    age_max: float | None = None
+    income_min: float | None = None
+    num_tenants_max: float | None = None
 
     for item in requirement_items:
         item_lower = item.lower()
@@ -190,7 +197,9 @@ def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements|None:
 
     # Youth listings often encode the age interval in descriptive text
     # ('mellan 18 och 30 år') instead of only the structured requirement list.
-    if (age_min is None or age_max is None) and (match := re.search(r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE)):
+    if (age_min is None or age_max is None) and (
+        match := re.search(r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE)
+    ):
         if age_min is None:
             age_min = float(match.group(1))
         if age_max is None:
@@ -216,9 +225,9 @@ def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements|None:
     )
 
 
-def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition|None:
-    my_position: int|None = None
-    total: int|None = None
+def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition | None:
+    my_position: int | None = None
+    total: int | None = None
 
     # Logged-in listing pages expose queue position in the dedicated
     # "preliminär köplats" widget.
@@ -299,7 +308,7 @@ def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition|None:
     return None
 
 
-def _parse_optional_int(value: Any) -> int|None:
+def _parse_optional_int(value: Any) -> int | None:
     """Best-effort integer parsing for queue fields that may be strings."""
     if isinstance(value, bool):
         return None
@@ -314,7 +323,7 @@ def _parse_optional_int(value: Any) -> int|None:
     return None
 
 
-def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueuePosition|None:
+def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueuePosition | None:
     """Extract queue signals available in index JSON.
 
     Currently only HarBraChans is used from JSON. Queue position values are
@@ -370,13 +379,13 @@ def _extract_html_listing_features(soup: BeautifulSoup) -> ListingFeatures:
 
     labels = _extract_feature_labels(soup)
 
-    kitchen: bool|None = None
+    kitchen: bool | None = None
     if any(_is_explicit_negative_feature(label, "kök") for label in labels):
         kitchen = False
     elif any("kök" in label for label in labels):
         kitchen = True
 
-    bathroom: bool|None = None
+    bathroom: bool | None = None
     if any(_is_explicit_negative_feature(label, "badrum") for label in labels):
         bathroom = False
     elif any("badrum" in label for label in labels):
@@ -403,6 +412,80 @@ def _extract_html_listing_features(soup: BeautifulSoup) -> ListingFeatures:
         washing_machine=washing_machine,
         dryer=dryer,
     )
+
+
+def _parse_floor_value(raw: str) -> float:
+    """Parse a floor string like '3', '1,5', or '0' into a float."""
+    return float(raw.replace(",", "."))
+
+
+def _extract_floor_range(soup: BeautifulSoup) -> Range | None:
+    """Extract floor range from the apartment-facts section on the detail page.
+
+    Multi-apartment listings show 'N - M tr' (e.g. '2 - 10 tr'), while
+    single-apartment listings show 'N tr' (e.g. '3 tr').
+    """
+    for label_el in soup.select(".apartment-facts__text"):
+        if label_el.get_text(strip=True).lower() != "våning":
+            continue
+
+        value_el = label_el.find_next_sibling(class_="apartment-facts__heading")
+        if value_el is None:
+            continue
+
+        value_text = value_el.get_text(" ", strip=True)
+        match = FLOOR_RANGE_RE.search(value_text)
+        if match is None:
+            continue
+
+        floor_min = _parse_floor_value(match.group(1))
+        floor_max = _parse_floor_value(match.group(2)) if match.group(2) else floor_min
+        return Range(min=floor_min, max=floor_max)
+
+    return None
+
+
+def _extract_has_viewing(soup: BeautifulSoup) -> bool | None:
+    """Detect whether a listing mentions a viewing opportunity.
+
+    Looks for the 'Visningsinformation' heading and analyses the text that
+    follows it (up to the next heading).  Returns True if any positive
+    viewing signal is found, False if only negation patterns appear, or
+    None if the section is missing entirely.
+    """
+    heading = soup.find("h3", id="visningsinformation")
+    if heading is None:
+        # Fallback: look by heading text
+        for h3 in soup.find_all("h3"):
+            if h3.get_text(strip=True).lower() == "visningsinformation":
+                heading = h3
+                break
+    if heading is None:
+        return None
+
+    # Collect text from sibling elements until the next heading
+    parts: list[str] = []
+    for sibling in heading.next_siblings:
+        if isinstance(sibling, Tag) and sibling.name and sibling.name.startswith("h"):
+            break
+        text = (
+            sibling.get_text(" ", strip=True) if isinstance(sibling, Tag) else str(sibling).strip()
+        )
+        if text:
+            parts.append(text)
+
+    section_text = " ".join(parts)
+    if not section_text:
+        return None
+
+    has_positive = bool(VIEWING_POSITIVE_RE.search(section_text))
+    has_negation = bool(VIEWING_NEGATION_RE.search(section_text))
+
+    # Positive signals override negation (e.g. "bostaden visas inte" but
+    # "öppen visning" of a similar unit is still available).
+    # When neither pattern matches, default to True since the section
+    # itself indicates viewing info is provided.
+    return not has_negation or has_positive
 
 
 def _scrape_listing_json(data: dict[str, Any]) -> Listing:
@@ -463,24 +546,28 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
 
 
 class _ScrapedListingPageData(CamelModel):
-    rental_period: DateRange|None = None
-    queue_position: QueuePosition|None = None
-    requirements: TenantRequirements|None = None
-    image_urls: list[str]|None = None
-    floorplan_url: str|None = None
-    free_text: str|None = None
-    features: ListingFeatures|None = None
+    rental_period: DateRange | None = None
+    queue_position: QueuePosition | None = None
+    requirements: TenantRequirements | None = None
+    image_urls: list[str] | None = None
+    floorplan_url: str | None = None
+    free_text: str | None = None
+    features: ListingFeatures | None = None
+    floor_range: Range | None = None
 
 
 def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
     soup = BeautifulSoup(html, "html.parser")
+    features = _extract_html_listing_features(soup)
+    features.has_viewing = _extract_has_viewing(soup)
     return _ScrapedListingPageData.model_validate({
         "queue_position": _extract_queue_position(soup),
         "requirements": _extract_requirements(soup),
         "image_urls": _extract_image_urls(soup),
         "floorplan_url": _extract_floorplan_url(soup),
         "free_text": _extract_free_text(soup),
-        "features": _extract_html_listing_features(soup),
+        "features": features,
+        "floor_range": _extract_floor_range(soup),
     })
 
 
@@ -520,6 +607,7 @@ async def parse_listing_async(
                     "dishwasher",
                     "washing_machine",
                     "dryer",
+                    "has_viewing",
                 }
             )
         )
@@ -550,14 +638,34 @@ async def parse_listing_async(
                 }
             )
 
+    # For multi-apartment listings with no floor from JSON, use the HTML floor range max.
+    if (
+        listing.floor is None
+        and scraped_data.floor_range is not None
+        and scraped_data.floor_range.max is not None
+    ):
+        listing.floor = scraped_data.floor_range.max
+    listing.floor_range = scraped_data.floor_range
+
     scraped_updates = _scraped_updates(scraped_data)
     scraped_updates.pop("features", None)
     scraped_updates.pop("queue_position", None)
-    return listing.model_copy(update=scraped_updates)
+    scraped_updates.pop("floor_range", None)  # already applied above
+    listing = listing.model_copy(update=scraped_updates)
+
+    # Derive has_pictures / has_floorplan from the merged listing data.
+    listing.features = listing.features.model_copy(
+        update={
+            "has_pictures": listing.image_urls is not None and len(listing.image_urls) > 0,
+            "has_floorplan": listing.floorplan_url is not None,
+        }
+    )
+
+    return listing
 
 
 async def scrape_all_listings(
-    progress_callback: ProgressCallback|None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> AllListingsResponse:
     from app.scraping.core import scrape_source_listings
     from app.scraping.sources.bostadsthlm import BostadSthlmSource
@@ -571,7 +679,7 @@ async def scrape_all_listings(
 
 async def scrape_all_listings_with_options(
     options: ListingsSearchOptions,
-    progress_callback: ProgressCallback|None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> AllListingsResponse:
     """New typed entrypoint used by API handlers with JSON search options."""
     from app.scraping.core import scrape_source_listings

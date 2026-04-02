@@ -1,15 +1,31 @@
-import { memo, useMemo, useState, useDeferredValue } from "react";
+import { memo, useEffect, useMemo, useState, useDeferredValue } from "react";
+import { MapIcon } from "lucide-react";
 
 import { FilterDropdown } from "./components/FilterDropdown";
 import { ListingUI } from "./components/ListingUI";
+import { MapFilterModal } from "./components/MapFilterModal";
 import { RefetchButton } from "./components/RefetchButton";
 import { SortDropdown } from "./components/SortDropdown";
 
 import { type Listing, type ListingParseError } from "./api/models";
 import { useListingsData } from "./hooks/useListingsData";
-import { buildFilters, applyFiltersToList, buildSortEntries, sortList } from "./lib/filterSort";
-import { allKeyData } from "./lib/keyData";
+import { useLocalStorage } from "./hooks/useLocalStorage";
+import { applyFiltersToList, sortList } from "./lib/filterSort";
+import {
+  buildSortEntries,
+  hydrateFilters,
+  hydrateSortEntries,
+  serializeFilters,
+  serializeSortEntries,
+  syncFiltersWithData,
+  type SerializedFilterState,
+  type SerializedSortEntry,
+} from "./lib/keyConfig";
 import { cn, formatUpdatedAt } from "./lib/utils";
+import { Button } from "./components/generic/Button";
+
+const LISTINGS_FILTERS_STORAGE_KEY = "listingsFilters";
+const LISTINGS_SORT_STORAGE_KEY = "listingsSort";
 
 function ParseErrorsPanel({ errors }: { errors: ListingParseError[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -62,14 +78,38 @@ export default function App() {
   const listingsQuery = useListingsData();
 
   const { listings, errors } = listingsQuery.data;
+  const [storedFilterStates, setStoredFilterStates] = useLocalStorage<SerializedFilterState[]>(
+    LISTINGS_FILTERS_STORAGE_KEY,
+    [],
+  );
+  const [storedSortStates, setStoredSortStates] = useLocalStorage<SerializedSortEntry[]>(
+    LISTINGS_SORT_STORAGE_KEY,
+    [],
+  );
 
   const numApartments = listings.map((x) => x.numApartments ?? 0).reduce((a, b) => a + b, 0);
 
-  const _defaultFilters = useMemo(() => buildFilters(listings, allKeyData), [listings, allKeyData]);
-  const [filters, setFilters] = useState(_defaultFilters);
+  const _defaultSortEntries = useMemo(() => buildSortEntries(), []);
+  const [filters, setFilters] = useState(() => hydrateFilters(storedFilterStates, listings));
+  const [sortEntries, setSortEntries] = useState(() => hydrateSortEntries(storedSortStates));
+  const [mapOpen, setMapOpen] = useState(false);
 
-  const _defaultSortEntries = useMemo(() => buildSortEntries(allKeyData), [allKeyData]);
-  const [sortEntries, setSortEntries] = useState(_defaultSortEntries);
+  // Check if the location filter is active (has selected districts)
+  const locationFilterActive = filters.some(
+    (f) => f.id === "districtId" && f.state.enabled,
+  );
+
+  useEffect(() => {
+    setFilters((currentFilters) => syncFiltersWithData(currentFilters, listings));
+  }, [listings]);
+
+  useEffect(() => {
+    setStoredFilterStates(serializeFilters(filters));
+  }, [filters, setStoredFilterStates]);
+
+  useEffect(() => {
+    setStoredSortStates(serializeSortEntries(sortEntries));
+  }, [sortEntries, setStoredSortStates]);
 
   const displayedListings = useMemo(() => {
     const filtered = applyFiltersToList(listings, filters);
@@ -80,7 +120,7 @@ export default function App() {
   const displayedListingsAreStale = deferredDisplayedListings !== displayedListings;
 
   // if (displayedListings) {
-  //   console.log(displayedListings.slice(0,5))
+  //   console.log(displayedListings);
   // }
 
   return (
@@ -102,18 +142,22 @@ export default function App() {
             {listingsQuery.updatedAt && (
               <p className="text-sm text-gs-3 mt-2">
                 Updated {formatUpdatedAt(listingsQuery.updatedAt)}
-                {(listingsQuery.refreshDelta.added > 0 || listingsQuery.refreshDelta.removed > 0) && (
+                {listingsQuery.loggedIn !== null && (
+                  <span className="ml-2">
+                    · {listingsQuery.loggedIn ? "logged in" : "not logged in"}
+                  </span>
+                )}
+                {(listingsQuery.refreshDelta.added > 0 ||
+                  listingsQuery.refreshDelta.removed > 0) && (
                   <span className="text-primary ml-2 font-medium">
                     {listingsQuery.refreshDelta.added > 0 && (
-                      <>
-                        Added {listingsQuery.refreshDelta.added}
-                      </>
+                      <>Added {listingsQuery.refreshDelta.added}</>
                     )}
-                    {listingsQuery.refreshDelta.added > 0 && listingsQuery.refreshDelta.removed > 0 && " · "}
+                    {listingsQuery.refreshDelta.added > 0 &&
+                      listingsQuery.refreshDelta.removed > 0 &&
+                      " · "}
                     {listingsQuery.refreshDelta.removed > 0 && (
-                      <>
-                        Removed {listingsQuery.refreshDelta.removed}
-                      </>
+                      <>Removed {listingsQuery.refreshDelta.removed}</>
                     )}
                   </span>
                 )}
@@ -140,19 +184,45 @@ export default function App() {
               onFetch={listingsQuery.startListingsStream}
             />
 
-            <FilterDropdown filters={filters} setFilters={setFilters} />
+            {listingsQuery.hasCachedData && (
+              <>
+                <FilterDropdown filters={filters} setFilters={setFilters} />
 
-            <SortDropdown
-              sortEntries={sortEntries}
-              setSortEntries={setSortEntries}
-              defaultSortEntries={_defaultSortEntries}
-            />
+                <Button
+                  size="large"
+                  className={cn(
+                    locationFilterActive && "border-primary/60 bg-primary/10 text-primary",
+                  )}
+                  onClick={() => setMapOpen(true)}
+                >
+                  <MapIcon className="w-4 h-4 mr-1" />
+                  Map
+                </Button>
+
+                <SortDropdown
+                  sortEntries={sortEntries}
+                  setSortEntries={setSortEntries}
+                  defaultSortEntries={_defaultSortEntries}
+                />
+              </>
+            )}
           </div>
         </div>
 
         {/* Main listings section */}
-        <ListingsList filteredListings={deferredDisplayedListings} newListingIds={listingsQuery.newListingIds} />
+        <ListingsList
+          filteredListings={deferredDisplayedListings}
+          newListingIds={listingsQuery.newListingIds}
+        />
       </div>
+
+      <MapFilterModal
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        filters={filters}
+        setFilters={setFilters}
+        listings={listings}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-// ---- Filtering ----
+// ---- Key accessor helpers ----
 
 export type KeyFn<T, V = any> = ((t: T) => V) | keyof T;
 
@@ -6,166 +6,179 @@ export function keyLookup<T, V>(x: T, key: KeyFn<T, V>): V {
   return typeof key === "function" ? key(x) : (x[key] as V);
 }
 
-// empty included means include all
-export type SetFilter<T, V = any> = {
+// ---- Filter definitions (immutable config, not serializable due to key functions) ----
+
+export type RangeFilterDef<T> = {
+  type: "range";
+  id: string;
+  name: string;
+  key: KeyFn<T, number | null>;
+  boundType: "upper" | "lower" | "both";
+  stepSize: number;
+  unit?: string;
+  group?: string;
+  defaultState?: Partial<RangeFilterState>;
+};
+
+export type SetFilterDef<T, V = any> = {
   type: "set";
   id: string;
-  enabled: boolean;
+  name: string;
   key: KeyFn<T, V>;
-  allOptions: V[];
-  included: V[];
-
-  name?: string;
-  allowNull: boolean; // if true, null data values are considered to be in the set
-  nullCount: number;
   group?: string;
+  defaultState?: Partial<SetFilterState<V>>;
 };
 
-export type SetFilterOptions = {
-  allOptions?: [];
-  allowNull?: boolean;
+export type BooleanFilterDef<T> = {
+  type: "boolean";
+  id: string;
+  name: string;
+  key: KeyFn<T, boolean | null | undefined>;
+  group?: string;
+  defaultState?: Partial<BooleanFilterState>;
 };
 
-export function makeSetFilter<T, V>(
-  id: string,
-  name: string,
-  key: KeyFn<T, V>,
-  options?: SetFilterOptions,
-): SetFilter<T, V> {
-  return {
-    type: "set",
-    id,
-    key,
-    allOptions: options?.allOptions ?? [],
-    included: [],
-    name,
-    allowNull: options?.allowNull ?? false,
-    nullCount: 0,
-    enabled: false,
-  };
-}
+// ---- Filter state (user-mutable selections, serializable) ----
 
-// min === null => min treated as -inf, max === null => max treated as inf
-// allowNull == true => null data values treated as in the range
-// absMin, absMax, stepSize and boundType are just used for UI purposes
+export type RangeFilterState = {
+  enabled: boolean;
+  min: number | null; // null treated as -inf
+  max: number | null; // null treated as +inf
+  allowNull: boolean; // if true, null data values pass the filter
+};
+
+export type SetFilterState<V = any> = {
+  enabled: boolean;
+  included: V[]; // empty = include all (filter disabled by convention)
+  allowNull: boolean; // if true, null data values pass the filter
+};
+
+export type BooleanFilterState = {
+  enabled: boolean;
+  value: boolean; // true = require true, false = require false
+  allowNull: boolean; // if true, null/undefined values pass (count as true)
+};
+
+// ---- Filter statistics (derived from data, recomputed on data change) ----
+
+export type RangeFilterStats = {
+  absMin: number; // Infinity when no non-null values exist
+  absMax: number; // -Infinity when no non-null values exist
+  nullCount: number;
+};
+
+export type SetFilterStats<V = any> = {
+  allOptions: V[];
+  nullCount: number;
+};
+
+export type BooleanFilterStats = {
+  trueCount: number;
+  falseCount: number;
+  nullCount: number;
+};
+
+// ---- Assembled filter types (def + state + stats) ----
+
 export type RangeFilter<T> = {
   type: "range";
   id: string;
-  key: KeyFn<T, number | null>;
-  enabled: boolean;
-  allowNull: boolean;
-  min: number | null;
-  max: number | null;
-
-  name?: string;
-  boundType: "upper" | "lower" | "both";
-  absMin: number;
-  absMax: number;
-  stepSize: number;
-  unit?: string;
-  nullCount: number;
-  group?: string;
+  def: RangeFilterDef<T>;
+  state: RangeFilterState;
+  stats: RangeFilterStats;
 };
 
-export type RangeFilterOptions = {
-  boundType?: "upper" | "lower" | "both";
-  absMin?: number | null;
-  absMax?: number | null;
-  min?: number | null;
-  max?: number | null;
-  stepSize?: number;
-  allowNull?: boolean;
-  unit?: string;
+export type SetFilter<T, V = any> = {
+  type: "set";
+  id: string;
+  def: SetFilterDef<T, V>;
+  state: SetFilterState<V>;
+  stats: SetFilterStats<V>;
 };
 
-export function makeRangeFilter<T>(
-  id: string,
-  name: string,
-  key: KeyFn<T, number | null>,
-  options?: RangeFilterOptions,
-): RangeFilter<T> {
-  return {
-    type: "range",
-    id,
-    name,
-    key,
-    min: options?.min ?? null,
-    max: options?.max ?? null,
-    absMin: options?.absMin ?? -Infinity,
-    absMax: options?.absMax ?? Infinity,
-    boundType: options?.boundType ?? "both",
-    stepSize: options?.stepSize ?? 1,
-    allowNull: options?.allowNull ?? false,
-    unit: options?.unit,
-    nullCount: 0,
-    enabled: false,
-  };
-}
-
-// Boolean filter: when enabled, only items where key(item) === true pass.
-// allowNull: if true, null/undefined values also pass (counts as "true").
 export type BooleanFilter<T> = {
   type: "boolean";
   id: string;
-  key: KeyFn<T, boolean | null | undefined>;
-  enabled: boolean;
-  allowNull: boolean;
-
-  name?: string;
-  trueCount: number;
-  nullCount: number;
-  group?: string;
+  def: BooleanFilterDef<T>;
+  state: BooleanFilterState;
+  stats: BooleanFilterStats;
 };
 
-export function makeBooleanFilter<T>(
-  id: string,
-  name: string,
-  key: KeyFn<T, boolean | null | undefined>,
-): BooleanFilter<T> {
-  return {
-    type: "boolean",
-    id,
-    name,
-    key,
-    enabled: false,
-    allowNull: false,
-    trueCount: 0,
-    nullCount: 0,
-  };
+export type Filter<T> = RangeFilter<T> | SetFilter<T> | BooleanFilter<T>;
+
+export type FilterDef<T> = RangeFilterDef<T> | SetFilterDef<T> | BooleanFilterDef<T>;
+
+export type FilterState = RangeFilterState | SetFilterState | BooleanFilterState;
+
+// Reset a filter back to its disabled baseline while preserving configured defaults.
+export function resetFilter<T>(filter: Filter<T>): Filter<T> {
+  switch (filter.type) {
+    case "range":
+      return {
+        ...filter,
+        state: {
+          enabled: false,
+          min: null,
+          max: null,
+          allowNull: false,
+          ...filter.def.defaultState,
+        },
+      };
+    case "set":
+      return {
+        ...filter,
+        state: {
+          enabled: false,
+          included: [],
+          allowNull: false,
+          ...filter.def.defaultState,
+        },
+      };
+    case "boolean":
+      return {
+        ...filter,
+        state: {
+          enabled: false,
+          value: true,
+          allowNull: false,
+          ...filter.def.defaultState,
+        },
+      };
+  }
 }
 
-export type Filter<T> = SetFilter<T> | RangeFilter<T> | BooleanFilter<T>;
-
-function _filterItemBySet<T, V>(x: T, filter: SetFilter<T, V>) {
-  const { key, included } = filter;
-  const value = keyLookup(x, key);
-  if (included != null && !included.includes(value as V)) return false;
-  return true;
-}
+// ---- Filtering logic ----
 
 function _filterItemByRange<T>(x: T, filter: RangeFilter<T>) {
-  const value = keyLookup(x, filter.key);
-  if (value == null) return filter.allowNull;
-  const min = filter.boundType === "upper" ? -Infinity : (filter.min ?? -Infinity);
-  const max = filter.boundType === "lower" ? Infinity : (filter.max ?? Infinity);
+  const value = keyLookup(x, filter.def.key);
+  if (value == null) return filter.state.allowNull;
+  const min = filter.def.boundType === "upper" ? -Infinity : (filter.state.min ?? -Infinity);
+  const max = filter.def.boundType === "lower" ? Infinity : (filter.state.max ?? Infinity);
   return min <= value && value <= max;
 }
 
+function _filterItemBySet<T, V>(x: T, filter: SetFilter<T, V>) {
+  const value = keyLookup(x, filter.def.key);
+  if (value == null) return filter.state.allowNull;
+  if (filter.state.included.length === 0) return true;
+  return filter.state.included.includes(value as V);
+}
+
 function _filterItemByBoolean<T>(x: T, filter: BooleanFilter<T>) {
-  const value = keyLookup(x, filter.key);
-  if (value == null) return filter.allowNull;
-  return value === true;
+  const value = keyLookup(x, filter.def.key);
+  if (value == null) return filter.state.allowNull;
+  return value === filter.state.value;
 }
 
 export function applyFiltersToList<T>(xs: T[], filters: Filter<T>[]) {
   return xs.filter((x) => {
     return filters.every((filter) => {
-      if (!filter.enabled) return true;
+      if (!filter.state.enabled) return true;
       switch (filter.type) {
-        case "set":
-          return _filterItemBySet(x, filter);
         case "range":
           return _filterItemByRange(x, filter);
+        case "set":
+          return _filterItemBySet(x, filter);
         case "boolean":
           return _filterItemByBoolean(x, filter);
       }
@@ -183,105 +196,139 @@ export type SortEntry<T, V = any> = {
   cmpFunc?: (a: V, b: V) => number;
 };
 
-export function sortList<T, V = any>(xs: T[], sorts: SortEntry<T, V>[]) {
-  return [
-    ...xs.sort((a, b) => {
-      for (const { key, ascending, cmpFunc } of sorts) {
-        const defaultCmpFunc = (x: V, y: V) => (x < y ? -1 : x > y ? 1 : 0);
-        const cmp = (cmpFunc ?? defaultCmpFunc)(keyLookup(a, key), keyLookup(b, key));
-        if (cmp !== 0) return ascending ? cmp : -cmp;
-      }
-      return 0;
-    }),
-  ];
+function defaultSortCmp<V>(left: V, right: V) {
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
-// ---- Building filters from data ----
+export function sortList<T, V = any>(xs: T[], sorts: SortEntry<T, V>[]) {
+  // Precompute sort keys once so time-based accessors stay stable for the full sort pass.
+  const decorated = xs.map((item, originalIndex) => ({
+    item,
+    originalIndex,
+    values: sorts.map((sort) => keyLookup(item, sort.key)),
+  }));
 
-type _KeyDataRange<T> = {
-  name: string;
-  unit?: string;
-  key: KeyFn<T, number | null>;
-  sortKey?: KeyFn<T, any>; // overrides key for sorting (e.g. ms-precision vs day-precision)
-  filterType: "range";
-  filterOptions?: RangeFilterOptions;
-  group?: string;
-};
-type _KeyDataSet<T> = {
-  name: string;
-  key: KeyFn<T>;
-  sortKey?: KeyFn<T, any>;
-  filterType: "set";
-  filterOptions?: SetFilterOptions;
-  group?: string;
-};
-type _KeyDataBoolean<T> = {
-  name: string;
-  key: KeyFn<T, boolean | null | undefined>;
-  sortKey?: KeyFn<T, any>;
-  filterType: "boolean";
-  group?: string;
-};
-
-export type KeyData<T> = _KeyDataRange<T> | _KeyDataSet<T> | _KeyDataBoolean<T>;
-
-export function buildFilters<T>(allObjects: T[], keyData: Record<string, KeyData<T>>): Filter<T>[] {
-  const allFilters = Object.entries(keyData).map(([id, kd]) => {
-    switch (kd.filterType) {
-      case "range": {
-        const f = makeRangeFilter(id, kd.name, kd.key, { ...kd.filterOptions, unit: kd.unit });
-        f.group = kd.group;
-        return f;
-      }
-      case "set": {
-        const f = makeSetFilter(id, kd.name, kd.key, kd.filterOptions);
-        f.group = kd.group;
-        return f;
-      }
-      case "boolean": {
-        const f = makeBooleanFilter(id, kd.name, kd.key);
-        f.group = kd.group;
-        return f;
-      }
+  decorated.sort((left, right) => {
+    for (const [index, { ascending, cmpFunc }] of sorts.entries()) {
+      const cmp = (cmpFunc ?? defaultSortCmp)(left.values[index], right.values[index]);
+      if (cmp !== 0) return ascending ? cmp : -cmp;
     }
+    return left.originalIndex - right.originalIndex;
   });
 
-  // Populate stats: range limits, set options, boolean/null counts
-  for (const obj of allObjects) {
-    for (const filter of allFilters) {
-      const value = keyLookup(obj, filter.key);
-      if (value == null) {
-        filter.nullCount++;
-      }
-      if (filter.type === "range") {
-        if (value != null) {
-          if (filter.absMin === -Infinity || (value as number) < filter.absMin) {
-            filter.absMin = value as number;
-          }
-          if (filter.absMax === Infinity || (value as number) > filter.absMax) {
-            filter.absMax = value as number;
-          }
-        }
-      } else if (filter.type === "set") {
-        if (value != null && !filter.allOptions.includes(value)) {
-          filter.allOptions.push(value);
-        }
-      } else if (filter.type === "boolean") {
-        if (value === true) {
-          filter.trueCount++;
-        }
-      }
-    }
-  }
-
-  return allFilters;
+  return decorated.map(({ item }) => item);
 }
 
-export function buildSortEntries<T>(keyData: Record<string, KeyData<T>>): SortEntry<T>[] {
-  return Object.entries(keyData).map(([id, kd]) => ({
-    id,
-    name: kd.name,
-    key: kd.sortKey ?? kd.key,
-    ascending: true,
-  }));
+// ---- Statistics computation ----
+
+function _computeRangeStats<T>(def: RangeFilterDef<T>, data: T[]): RangeFilterStats {
+  let absMin = Infinity;
+  let absMax = -Infinity;
+  let nullCount = 0;
+  for (const obj of data) {
+    const value = keyLookup(obj, def.key);
+    if (value == null) {
+      nullCount++;
+      continue;
+    }
+    if (value < absMin) absMin = value;
+    if (value > absMax) absMax = value;
+  }
+  return { absMin, absMax, nullCount };
+}
+
+function _computeSetStats<T, V>(def: SetFilterDef<T, V>, data: T[]): SetFilterStats<V> {
+  const allOptions: V[] = [];
+  let nullCount = 0;
+  for (const obj of data) {
+    const value = keyLookup(obj, def.key);
+    if (value == null) {
+      nullCount++;
+      continue;
+    }
+    if (!allOptions.includes(value as V)) allOptions.push(value as V);
+  }
+  return { allOptions, nullCount };
+}
+
+function _computeBooleanStats<T>(def: BooleanFilterDef<T>, data: T[]): BooleanFilterStats {
+  let trueCount = 0;
+  let falseCount = 0;
+  let nullCount = 0;
+  for (const obj of data) {
+    const value = keyLookup(obj, def.key);
+    if (value == null) {
+      nullCount++;
+      continue;
+    }
+    if (value === true) trueCount++;
+    if (value === false) falseCount++;
+  }
+  return { trueCount, falseCount, nullCount };
+}
+
+// ---- Filter constructors ----
+
+export function createRangeFilter<T>(
+  def: RangeFilterDef<T>,
+  data: T[],
+  state?: Partial<RangeFilterState>,
+): RangeFilter<T> {
+  return {
+    type: "range",
+    id: def.id,
+    def,
+    state: {
+      enabled: false,
+      min: null,
+      max: null,
+      allowNull: false,
+      ...def.defaultState,
+      ...state,
+    },
+    stats: _computeRangeStats(def, data),
+  };
+}
+
+export function createSetFilter<T, V = any>(
+  def: SetFilterDef<T, V>,
+  data: T[],
+  state?: Partial<SetFilterState<V>>,
+): SetFilter<T, V> {
+  return {
+    type: "set",
+    id: def.id,
+    def,
+    state: {
+      enabled: false,
+      included: [],
+      allowNull: false,
+      ...def.defaultState,
+      ...state,
+    },
+    stats: _computeSetStats(def, data),
+  };
+}
+
+export function createBooleanFilter<T>(
+  def: BooleanFilterDef<T>,
+  data: T[],
+  state?: Partial<BooleanFilterState>,
+): BooleanFilter<T> {
+  return {
+    type: "boolean",
+    id: def.id,
+    def,
+    state: {
+      enabled: false,
+      value: true,
+      allowNull: false,
+      ...def.defaultState,
+      ...state,
+    },
+    stats: _computeBooleanStats(def, data),
+  };
 }

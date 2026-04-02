@@ -51,7 +51,6 @@ class ListingFeatures(CamelModel):
     balcony: bool | None = None
     elevator: bool | None = None
     new_production: bool | None = None
-
     # not in json but can be scraped from listing page under "Egenskaper"
     kitchen: bool | None = None
     bathroom: bool | None = None
@@ -59,6 +58,11 @@ class ListingFeatures(CamelModel):
     dishwasher: bool = False
     washing_machine: bool = False
     dryer: bool = False
+
+    # derived from listing detail page content
+    has_viewing: bool | None = None  # true if viewing mentioned, false if explicitly negated
+    has_pictures: bool = False
+    has_floorplan: bool = False
 
 
 class Listing(CamelModel):
@@ -85,11 +89,13 @@ class Listing(CamelModel):
     image_urls: list[str] | None = None
     floorplan_url: str | None = None
     free_text: str | None = None
+    district_id: int | None = None  # assigned by server-side PIP from coords
 
     # For listings with multiple apartments
     num_apartments: int | None = None
     rent_range: Range | None = None
     area_sqm_range: Range | None = None
+    floor_range: Range | None = None  # floor range for multi-apartment listings
 
 
 

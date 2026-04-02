@@ -15,6 +15,7 @@ from app.models import (
     ScrapeEventStatus,
     ScrapeProgress,
 )
+from app.geo import lookup_district
 from app.scraping.client import create_async_client
 from app.scraping.types import ListingSource, ProgressCallback
 
@@ -92,6 +93,9 @@ async def _parse_listing_task(
     try:
         async with semaphore:
             listing = await source.parse_listing(item, client)
+        # Assign district via point-in-polygon lookup
+        if listing.coords is not None:
+            listing.district_id = lookup_district(listing.coords.lat, listing.coords.long)
         return index, listing, None
     except (ValidationError, Exception) as error:  # noqa: BLE001
         logger.warning(

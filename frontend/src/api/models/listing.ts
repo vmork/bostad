@@ -16,9 +16,11 @@ import type { ListingDatePosted } from './listingDatePosted';
 import type { ListingImageUrls } from './listingImageUrls';
 import type { ListingFloorplanUrl } from './listingFloorplanUrl';
 import type { ListingFreeText } from './listingFreeText';
+import type { ListingDistrictId } from './listingDistrictId';
 import type { ListingNumApartments } from './listingNumApartments';
 import type { ListingRentRange } from './listingRentRange';
 import type { ListingAreaSqmRange } from './listingAreaSqmRange';
+import type { ListingFloorRange } from './listingFloorRange';
 
 export interface Listing {
   id: string;
@@ -41,7 +43,9 @@ export interface Listing {
   imageUrls?: ListingImageUrls;
   floorplanUrl?: ListingFloorplanUrl;
   freeText?: ListingFreeText;
+  districtId?: ListingDistrictId;
   numApartments?: ListingNumApartments;
   rentRange?: ListingRentRange;
   areaSqmRange?: ListingAreaSqmRange;
+  floorRange?: ListingFloorRange;
 }

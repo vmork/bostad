@@ -6,15 +6,21 @@ A rental listing aggregator for Stockholm housing (bostad.stockholm.se). Monorep
 
 The codebase now has a source-oriented scraping architecture that keeps generic async orchestration separate from source-specific parsing logic, so adding new listing sources is straightforward.
 
+## Notes
+- Do not try to read the entire geojson files in the data folder, they are very large and will fill up your context window. 
+- ALWAYS make sure you are in the right directory (eg backend/ or frontend/) when running commands. By default you will be in the workspace root, so you need to `cd` into the correct subfolder before running commands.
+- When in backend: make sure the venv is activated, and if the server is already running, use that open connection, otherwise start a new one with the command mentioned in the architecture section.
+- For quick frontend testing where localstorage is empty, you can use the "max listings" options from the "search options" dropdown in the browser to fetch data faster.
+
 ## Architecture
 
 ### Type Synchronization (Critical Workflow)
 
 Backend Pydantic models → OpenAPI schema → Generated TypeScript types + React Query hooks.
 
-**When modifying `backend/app/models.py`:**
+**After modifying `backend/app/models.py`:**
 
-1. Restart backend: `uvicorn app.main:app --reload --port 8000` (from `backend/`)
+1. Restart backend: `uvicorn app.main:app --port 8000` (from `backend/`)
 2. Regenerate frontend types: `pnpm generate:api` (from `frontend/`)
 3. Generated files in `frontend/src/api/` — **never edit manually**
 
@@ -32,7 +38,14 @@ When backend request/response models or stream event payloads change, always re-
   - HTTP client setup in `backend/app/http/client.py`
 - `backend/app/scrape_bostadsthlm.py` remains the source parser module and compatibility entrypoint
 - Typed fetch options are modeled in `ListingsSearchOptions` (`backend/app/models.py`), currently with `sources` constrained to `bostadsthlm` and optional `max_listings` (debug-only parse limit, default `None`)
-- Run: `uvicorn app.main:app --reload --port 8000`
+- Run: `uvicorn app.main:app --port 8000`
+
+### Scraping
+
+- For adding/modifying scraping code:
+  - check example json response from https://bostad.stockholm.se/AllaAnnonser under scratch folder
+  - if needed, find listings that has relevant properties for the task
+  - go the specific listing pages and look at the html structure, note there can be a lot of irregularity, also look at existing scraping code
 
 ### Frontend (`frontend/`)
 
@@ -60,7 +73,6 @@ class MyModel(CamelModel):
 
 - Use the `cn()` utility from `src/lib/utils.ts` for conditional Tailwind classes
 - Theme variables defined in `src/index.css` under `@theme` (e.g., `--color-primary`)
-- Design tokens: `bg-background`, `text-gs-0`, `text-muted`, `border-gs-2`, `bg-primary`
 
 ### API Consumption
 

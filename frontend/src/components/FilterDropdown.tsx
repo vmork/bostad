@@ -1,6 +1,12 @@
 import type { Listing } from "../api/models";
-import type { BooleanFilter, Filter, RangeFilter, SetFilter } from "../lib/filterSort";
-import { groupNames } from "../lib/keyData";
+import {
+  resetFilter,
+  type BooleanFilter,
+  type Filter,
+  type RangeFilter,
+  type SetFilter,
+} from "../lib/filterSort";
+import { groupNames, keyConfig } from "../lib/keyConfig";
 import { cn } from "../lib/utils";
 import { Button } from "./generic/Button";
 import { Dropdown } from "./generic/Dropdown";
@@ -20,30 +26,18 @@ function replaceFilter(
   setFilters(newFilters);
 }
 
-// Returns a copy of the filter with its state reset to defaults
-function disabledFilter(filter: Filter<Listing>): Filter<Listing> {
-  if (filter.type === "range") {
-    return { ...filter, enabled: false, min: null, max: null };
-  } else if (filter.type === "set") {
-    return { ...filter, enabled: false, included: [] };
-  } else if (filter.type === "boolean") {
-    return { ...filter, enabled: false, allowNull: false };
-  }
-  return filter;
-}
-
 // Builds range/options info text with optional unit suffix and null count
 function getFilterInfoString(filter: Filter<Listing>): string {
-  const nullSuffix = filter.nullCount > 0 ? ` (${filter.nullCount} null)` : "";
+  const nullSuffix = filter.stats.nullCount > 0 ? ` (${filter.stats.nullCount} null)` : "";
   if (filter.type === "range") {
-    if (filter.absMin === -Infinity || filter.absMax === Infinity) return "No data";
-    const unit = filter.unit ? ` ${filter.unit}` : "";
-    return `${filter.absMin} to ${filter.absMax}${unit}${nullSuffix}`;
+    if (!isFinite(filter.stats.absMin)) return "No data";
+    const unit = filter.def.unit ? ` ${filter.def.unit}` : "";
+    return `${filter.stats.absMin} to ${filter.stats.absMax}${unit}${nullSuffix}`;
   } else if (filter.type === "set") {
-    if (filter.allOptions.length === 0) return "No data";
-    return `${filter.allOptions.length} options${nullSuffix}`;
+    if (filter.stats.allOptions.length === 0) return "No data";
+    return `${filter.stats.allOptions.length} options${nullSuffix}`;
   } else if (filter.type === "boolean") {
-    return `${filter.trueCount} true${nullSuffix}`;
+    return `${filter.stats.trueCount} true, ${filter.stats.falseCount} false${nullSuffix}`;
   }
   return "No data";
 }
@@ -58,7 +52,7 @@ function RangeInputField({
   onFilterChange: (updatedFilter: RangeFilter<Listing>) => void;
   boundType: "min" | "max";
 }) {
-  const value = filter[boundType];
+  const value = filter.state[boundType];
   const displayValue = value ?? "";
   const placeholder = boundType === "min" ? "-∞" : "+∞";
   // Size to content: use value length if present, otherwise placeholder length
@@ -73,16 +67,16 @@ function RangeInputField({
         value != null && "border-primary",
       )}
       style={{ width: `${inputWidth}ch` }}
-      min={filter.absMin ?? undefined}
-      max={filter.absMax ?? undefined}
-      step={filter.stepSize}
+      min={isFinite(filter.stats.absMin) ? filter.stats.absMin : undefined}
+      max={isFinite(filter.stats.absMax) ? filter.stats.absMax : undefined}
+      step={filter.def.stepSize}
       value={displayValue}
       placeholder={placeholder}
       onChange={(event) => {
         const value = event.target.value ? parseFloat(event.target.value) : null;
-        const otherLimit = boundType === "min" ? filter.max : filter.min;
+        const otherLimit = boundType === "min" ? filter.state.max : filter.state.min;
         const enabled = value !== null || otherLimit !== null;
-        onFilterChange({ ...filter, [boundType]: value, enabled });
+        onFilterChange({ ...filter, state: { ...filter.state, [boundType]: value, enabled } });
       }}
     />
   );
@@ -96,7 +90,7 @@ function RangeInputs({
   filter: RangeFilter<Listing>;
   onFilterChange: (updatedFilter: RangeFilter<Listing>) => void;
 }) {
-  if (filter.boundType === "lower") {
+  if (filter.def.boundType === "lower") {
     return (
       <div className="flex items-center">
         <span className="text-s text-gs-3/70 select-none mr-1.5">≥</span>
@@ -104,7 +98,7 @@ function RangeInputs({
       </div>
     );
   }
-  if (filter.boundType === "upper") {
+  if (filter.def.boundType === "upper") {
     return (
       <div className="flex items-center gap-0.5">
         <span className="text-s text-gs-3/70 select-none mr-1">≤</span>
@@ -133,21 +127,21 @@ function FilterRowLeftSide({
   const iconClassName = "w-4 h-4 text-gs-3/70";
   return (
     <div className="flex items-center gap-1.5">
-      {filter.enabled ? (
+      {filter.state.enabled ? (
         <Button
           variant="icon"
-          className="p-0 bg-transparent"
+          className="p-0 bg-transparent -ml-1.5"
           onClick={(event) => {
             event.stopPropagation();
-            onFilterChange(disabledFilter(filter));
+            onFilterChange(resetFilter(filter));
           }}
         >
           <XIcon className={cn(iconClassName, "text-red-1/50 hover:brightness-50")} />
         </Button>
       ) : null}
       <div className="flex flex-col">
-        <span className={cn("uppercase text-xs text-gs-4", filter.enabled && "font-medium")}>
-          {filter.name}
+        <span className={cn("uppercase text-xs text-gs-4", filter.state.enabled && "font-medium")}>
+          {filter.def.name}
         </span>
         <span className="text-xxs text-gs-3/70">{getFilterInfoString(filter)}</span>
       </div>
@@ -166,7 +160,7 @@ function RangeFilterRow({
     <div
       className={cn(
         "flex items-center gap-3 justify-between w-full px-3 py-2 bg-gs-0",
-        filter.enabled && "bg-gs-2/50",
+        filter.state.enabled && "bg-gs-2/50",
       )}
     >
       <FilterRowLeftSide filter={filter} onFilterChange={onFilterChange} />
@@ -182,21 +176,21 @@ function SetFilterRow({
   filter: SetFilter<Listing>;
   onFilterChange: (updatedFilter: Filter<Listing>) => void;
 }) {
-  const numSelected = filter.included.length;
+  const numSelected = filter.state.included.length;
   return (
-    <Dropdown.Submenu title={filter.name} preferredSide="right">
+    <Dropdown.Submenu title={filter.def.name} preferredSide="right">
       <Dropdown.SubmenuTrigger asChild>
         <div
           className={cn(
             "flex items-center gap-3 justify-between w-full cursor-pointer px-3 py-2 bg-gs-0 hover:brightness-95",
-            filter.enabled && "bg-gs-2/50",
+            filter.state.enabled && "bg-gs-2/50",
           )}
         >
           <FilterRowLeftSide filter={filter} onFilterChange={onFilterChange} />
           <div className="flex items-center gap-1">
             {numSelected > 0 && (
               <Pill type="primary" className="text-xs">
-                {`${filter.included[0]}` + (numSelected > 1 ? ` + ${numSelected - 1}` : ``)}
+                {`${filter.state.included[0]}` + (numSelected > 1 ? ` + ${numSelected - 1}` : ``)}
               </Pill>
             )}
             <ChevronRightIcon className="h-4 w-4 shrink-0 text-gs-3/70" />
@@ -205,14 +199,13 @@ function SetFilterRow({
       </Dropdown.SubmenuTrigger>
       <Dropdown.SubmenuContent className="border border-gs-3/50 p-3 max-w-[min(20rem,calc(100vw-1.5rem))]">
         <MultiSelect
-          allItems={filter.allOptions}
-          included={filter.included}
+          allItems={filter.stats.allOptions}
+          included={filter.state.included}
           setIncluded={(included) => {
             const nextIncluded = included ?? [];
             onFilterChange({
               ...filter,
-              included: nextIncluded,
-              enabled: nextIncluded.length > 0,
+              state: { ...filter.state, included: nextIncluded, enabled: nextIncluded.length > 0 },
             });
           }}
           keyFn={(option) => option}
@@ -259,42 +252,98 @@ function BooleanFilterRow({
     <div
       className={cn(
         "flex items-center gap-3 justify-between w-full px-3 py-2 bg-gs-0",
-        filter.enabled && "bg-gs-2/50",
+        filter.state.enabled && "bg-gs-2/50",
       )}
     >
       <FilterRowLeftSide filter={filter} onFilterChange={onFilterChange} />
       <div className="flex items-center gap-2">
+        {filter.state.enabled && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className={cn(
+                "text-xs rounded px-1.5 py-0.5 border cursor-pointer",
+                filter.state.value
+                  ? "border-primary/60 bg-primary/10 text-primary"
+                  : "border-gs-3/30 text-gs-3/70 hover:border-gs-3/60",
+              )}
+              onClick={() =>
+                onFilterChange({
+                  ...filter,
+                  state: { ...filter.state, value: true },
+                })
+              }
+            >
+              yes
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "text-xs rounded px-1.5 py-0.5 border cursor-pointer",
+                !filter.state.value
+                  ? "border-primary/60 bg-primary/10 text-primary"
+                  : "border-gs-3/30 text-gs-3/70 hover:border-gs-3/60",
+              )}
+              onClick={() =>
+                onFilterChange({
+                  ...filter,
+                  state: { ...filter.state, value: false },
+                })
+              }
+            >
+              no
+            </button>
+          </div>
+        )}
         {/* "include unknown" toggle — only visible when filter is active and nulls exist */}
-        {filter.enabled && (
+        {filter.state.enabled && filter.stats.nullCount > 0 && (
           <button
             type="button"
             className={cn(
               "text-xs rounded px-1.5 py-0.5 border cursor-pointer",
-              filter.allowNull
+              filter.state.allowNull
                 ? "border-primary/60 bg-primary/10 text-primary"
                 : "border-gs-3/30 text-gs-3/70 hover:border-gs-3/60",
             )}
-            onClick={() => onFilterChange({ ...filter, allowNull: !filter.allowNull })}
+            onClick={() =>
+              onFilterChange({
+                ...filter,
+                state: { ...filter.state, allowNull: !filter.state.allowNull },
+              })
+            }
           >
             incl. null
           </button>
         )}
         <Checkbox
-          checked={filter.enabled}
-          onChange={(checked) => onFilterChange({ ...filter, enabled: checked })}
+          checked={filter.state.enabled}
+          onChange={(checked) =>
+            onFilterChange({
+              ...filter,
+              state: {
+                ...filter.state,
+                enabled: checked,
+                value: checked ? filter.state.value : true,
+              },
+            })
+          }
         />
       </div>
     </div>
   );
 }
 
-// Groups filters by their group field, preserving order within each group
+// Groups filters by their group field, preserving order within each group.
+// Filters with showInFilter === false in keyConfig are excluded.
 function groupFilters(filters: Filter<Listing>[]) {
   const groups: { group: string; label: string; filters: Filter<Listing>[] }[] = [];
   const groupMap = new Map<string, Filter<Listing>[]>();
 
   for (const filter of filters) {
-    const groupId = filter.group ?? "";
+    const config = keyConfig[filter.id];
+    if (config?.showInFilter === false) continue;
+
+    const groupId = filter.def.group ?? "";
     if (!groupMap.has(groupId)) {
       const label = (groupNames as Record<string, string>)[groupId] ?? "";
       const entry = { group: groupId, label, filters: [] as Filter<Listing>[] };
@@ -315,11 +364,13 @@ export function FilterDropdown({
   filters: Filter<Listing>[];
   setFilters: (filters: Filter<Listing>[]) => void;
 }) {
-  const activeCount = filters.filter((f) => f.enabled).length;
+  const activeCount = filters.filter(
+    (f) => f.state.enabled && keyConfig[f.id]?.showInFilter !== false,
+  ).length;
   const groups = groupFilters(filters);
 
   const clearAllFilters = () => {
-    setFilters(filters.map((f) => disabledFilter(f)));
+    setFilters(filters.map((f) => resetFilter(f)));
   };
 
   return (

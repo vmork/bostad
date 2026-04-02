@@ -9,6 +9,7 @@ import type { ListingFeaturesElevator } from './listingFeaturesElevator';
 import type { ListingFeaturesNewProduction } from './listingFeaturesNewProduction';
 import type { ListingFeaturesKitchen } from './listingFeaturesKitchen';
 import type { ListingFeaturesBathroom } from './listingFeaturesBathroom';
+import type { ListingFeaturesHasViewing } from './listingFeaturesHasViewing';
 
 export interface ListingFeatures {
   balcony?: ListingFeaturesBalcony;
@@ -19,4 +20,7 @@ export interface ListingFeatures {
   dishwasher?: boolean;
   washingMachine?: boolean;
   dryer?: boolean;
+  hasViewing?: ListingFeaturesHasViewing;
+  hasPictures?: boolean;
+  hasFloorplan?: boolean;
 }
