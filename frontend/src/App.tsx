@@ -95,9 +95,7 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
 
   // Check if the location filter is active (has selected districts)
-  const locationFilterActive = filters.some(
-    (f) => f.id === "districtId" && f.state.enabled,
-  );
+  const locationFilterActive = filters.some((f) => f.id === "districtId" && f.state.enabled);
 
   useEffect(() => {
     setFilters((currentFilters) => syncFiltersWithData(currentFilters, listings));

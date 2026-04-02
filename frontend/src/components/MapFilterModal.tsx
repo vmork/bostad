@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Listing } from "../api/models";
 import type { Filter, SetFilter } from "../lib/filterSort";
-import type {
-  AreaHierarchy,
-  DistrictCollection,
-  RegionCollection,
-} from "../lib/geoTypes";
+import type { AreaHierarchy, DistrictCollection, RegionCollection } from "../lib/geoTypes";
 import { Modal } from "./generic/Modal";
 import { Button } from "./generic/Button";
 import { AreaMap } from "./AreaMap";
 import { AreaSidebar } from "./AreaSidebar";
+
+/** Identifies which area the sidebar is currently hovering */
+export type HoveredArea = { type: "district"; id: number } | { type: "region"; id: string } | null;
 
 // -- Geo data fetching (cached after first load) --
 
@@ -50,6 +49,7 @@ export function MapFilterModal({
   listings,
 }: MapFilterModalProps) {
   const [geoData, setGeoData] = useState(geoCache);
+  const [hoveredArea, setHoveredArea] = useState<HoveredArea>(null);
 
   // Fetch geo data lazily on first open
   useEffect(() => {
@@ -63,10 +63,7 @@ export function MapFilterModal({
     | SetFilter<Listing, number>
     | undefined;
 
-  const selectedDistricts = useMemo(
-    () => districtFilter?.state.included ?? [],
-    [districtFilter],
-  );
+  const selectedDistricts = useMemo(() => districtFilter?.state.included ?? [], [districtFilter]);
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
   const allowNull = districtFilter?.state.allowNull ?? true;
 
@@ -104,10 +101,10 @@ export function MapFilterModal({
     (municipalityId: string) => {
       if (!geoData) return;
       const childIds = geoData.hierarchy[municipalityId] ?? [];
-      const allSelected = childIds.every((id) => selectedSet.has(id));
+      const anySelected = childIds.some((id) => selectedSet.has(id));
       let next: number[];
-      if (allSelected) {
-        // Deselect all children
+      if (anySelected) {
+        // Deselect all children (clear on partial or full selection)
         const removeSet = new Set(childIds);
         next = selectedDistricts.filter((id) => !removeSet.has(id));
       } else {
@@ -170,13 +167,14 @@ export function MapFilterModal({
       {/* Content: map + sidebar */}
       <div className="flex flex-1 min-h-0">
         {/* Map area */}
-        <div className="flex-[2] min-w-0">
+        <div className="flex-2 min-w-0">
           {geoData ? (
             <AreaMap
               regions={geoData.regions}
               districts={geoData.districts}
               hierarchy={geoData.hierarchy}
               selectedDistricts={selectedSet}
+              hoveredArea={hoveredArea}
               listings={listings}
               onToggleDistrict={toggleDistrict}
               onToggleRegion={toggleRegion}
@@ -203,6 +201,7 @@ export function MapFilterModal({
               onSetAllowNull={(allow) => updateDistrictFilter(selectedDistricts, allow)}
               onSelectAll={selectAll}
               onDeselectAll={deselectAll}
+              onHoverArea={setHoveredArea}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-gs-3">

@@ -62,3 +62,33 @@ body {
 input:focus {
   outline: 1px solid var(--color-primary);
 }
+
+/* Leaflet: area name label shown on polygon hover */
+.area-label {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #2563eb; /* blue-600 */
+  font-weight: 600;
+  font-size: 0.75rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.area-label::before {
+  display: none !important;
+}
+
+/* Leaflet: listing dot tooltip — must sit above all SVG layers */
+.listing-tooltip {
+  z-index: 1000 !important;
+  padding: 6px 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+  font-family: var(--font-sans);
+}
+
+/* Leaflet: disable focus outline / bounding box on clicked polygons */
+.leaflet-interactive:focus {
+  outline: none !important;
+}

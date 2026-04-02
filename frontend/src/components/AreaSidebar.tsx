@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { AreaHierarchy, DistrictCollection, RegionCollection } from "../lib/geoTypes";
+import type { HoveredArea } from "./MapFilterModal";
 
 // -- Types --
 
@@ -18,6 +19,7 @@ type AreaSidebarProps = {
   onSetAllowNull: (allow: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  onHoverArea: (area: HoveredArea) => void;
 };
 
 // -- Helpers --
@@ -94,6 +96,7 @@ export function AreaSidebar({
   onSetAllowNull,
   onSelectAll,
   onDeselectAll,
+  onHoverArea,
 }: AreaSidebarProps) {
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
@@ -157,23 +160,35 @@ export function AreaSidebar({
               {/* Region row */}
               <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gs-1 border-b border-gs-2/50",
+                  "flex items-center gap-2 px-3 py-1.5 hover:bg-gs-1 border-b border-gs-2/50",
                   someSelected && "bg-gs-2/30",
                   allSelected && "bg-gs-2/50",
                 )}
-                onClick={() => toggleExpanded(region.municipalityId)}
+                onMouseEnter={() => onHoverArea({ type: "region", id: region.municipalityId })}
+                onMouseLeave={() => onHoverArea(null)}
               >
-                {isExpanded ? (
-                  <ChevronDownIcon className="w-3.5 h-3.5 text-gs-3 shrink-0" />
-                ) : (
-                  <ChevronRightIcon className="w-3.5 h-3.5 text-gs-3 shrink-0" />
-                )}
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(region.municipalityId)}
+                  className="cursor-pointer shrink-0 p-0.5 -m-0.5 rounded hover:bg-gs-2"
+                >
+                  {isExpanded ? (
+                    <ChevronDownIcon className="w-3.5 h-3.5 text-gs-3" />
+                  ) : (
+                    <ChevronRightIcon className="w-3.5 h-3.5 text-gs-3" />
+                  )}
+                </button>
                 <Checkbox
                   checked={allSelected}
                   indeterminate={someSelected}
                   onChange={() => onToggleRegion(region.municipalityId)}
                 />
-                <span className="text-sm text-dark flex-1 truncate">{region.name}</span>
+                <span
+                  className="text-sm text-dark flex-1 truncate cursor-pointer"
+                  onClick={() => onToggleRegion(region.municipalityId)}
+                >
+                  {region.name}
+                </span>
                 {regionCount > 0 && (
                   <span className="text-xxs text-gs-3 tabular-nums">{regionCount}</span>
                 )}
@@ -193,6 +208,8 @@ export function AreaSidebar({
                           isSelected && "bg-gs-2/30",
                         )}
                         onClick={() => onToggleDistrict(district.id)}
+                        onMouseEnter={() => onHoverArea({ type: "district", id: district.id })}
+                        onMouseLeave={() => onHoverArea(null)}
                       >
                         <Checkbox
                           checked={isSelected}

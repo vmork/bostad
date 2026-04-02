@@ -64,10 +64,10 @@ def _parse_cookie_header(cookie_header: str) -> dict[str, str]:
 
 async def _emit_progress(
     source: ListingSource,
-    progress_callback: ProgressCallback|None,
+    progress_callback: ProgressCallback | None,
     event: ScrapeEventStatus,
     progress: ScrapeProgress,
-    data: AllListingsResponse|None = None,
+    data: AllListingsResponse | None = None,
 ) -> None:
     if progress_callback is None:
         return
@@ -87,7 +87,7 @@ async def _parse_listing_task(
     item: dict[str, Any],
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
-) -> tuple[int, Listing|None, ListingParseError|None]:
+) -> tuple[int, Listing | None, ListingParseError | None]:
     listing_id = source.get_listing_id(item)
 
     try:
@@ -102,13 +102,17 @@ async def _parse_listing_task(
             f"[{source.source_id}] Failed to parse listing {listing_id}: "
             f"{error.__class__.__name__}: {error}"
         )
-        return index, None, ListingParseError(id=listing_id, reason=str(error), url=source.get_listing_url(item))
+        return (
+            index,
+            None,
+            ListingParseError(id=listing_id, reason=str(error), url=source.get_listing_url(item)),
+        )
 
 
 async def scrape_source_listings(
     source: ListingSource,
     options: ListingsSearchOptions,
-    progress_callback: ProgressCallback|None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> AllListingsResponse:
     """Generic orchestration for scraping one source with bounded concurrency."""
     async with create_async_client() as client:
@@ -129,7 +133,7 @@ async def scrape_source_listings(
         started_at = time.time()
         data = await source.fetch_listing_index(client, options)
 
-        logged_in: bool|None = None
+        logged_in: bool | None = None
         if data:
             first_index_item = data[0]
             if isinstance(first_index_item, dict):

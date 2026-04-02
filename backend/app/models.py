@@ -79,7 +79,9 @@ class Listing(CamelModel):
     features: ListingFeatures = Field(default_factory=ListingFeatures)
 
     # Misc
-    floor: float | None  # under "Vaning", can be negative or fractional, absent only for multi-apt listings
+    floor: (
+        float | None
+    )  # under "Vaning", can be negative or fractional, absent only for multi-apt listings
     rental_period: DateRange | None = None
     coords: Coordinates | None = None
     application_deadline: datetime | None = None
@@ -98,11 +100,9 @@ class Listing(CamelModel):
     floor_range: Range | None = None  # floor range for multi-apartment listings
 
 
-
-
 class ListingParseError(CamelModel):
     id: str
-    url: str|None = None
+    url: str | None = None
     reason: str
 
 
