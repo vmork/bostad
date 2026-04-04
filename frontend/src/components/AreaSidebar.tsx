@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import type { AreaHierarchy, DistrictCollection, RegionCollection } from "../lib/geoTypes";
-import type { HoveredArea } from "./MapFilterModal";
 
 // -- Types --
 
@@ -19,7 +18,6 @@ type AreaSidebarProps = {
   onSetAllowNull: (allow: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
-  onHoverArea: (area: HoveredArea) => void;
 };
 
 // -- Helpers --
@@ -96,7 +94,6 @@ export function AreaSidebar({
   onSetAllowNull,
   onSelectAll,
   onDeselectAll,
-  onHoverArea,
 }: AreaSidebarProps) {
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
@@ -164,8 +161,6 @@ export function AreaSidebar({
                   someSelected && "bg-gs-2/30",
                   allSelected && "bg-gs-2/50",
                 )}
-                onMouseEnter={() => onHoverArea({ type: "region", id: region.municipalityId })}
-                onMouseLeave={() => onHoverArea(null)}
               >
                 <button
                   type="button"
@@ -208,8 +203,6 @@ export function AreaSidebar({
                           isSelected && "bg-gs-2/30",
                         )}
                         onClick={() => onToggleDistrict(district.id)}
-                        onMouseEnter={() => onHoverArea({ type: "district", id: district.id })}
-                        onMouseLeave={() => onHoverArea(null)}
                       >
                         <Checkbox
                           checked={isSelected}

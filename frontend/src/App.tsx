@@ -220,7 +220,6 @@ export default function App() {
         filters={filters}
         setFilters={setFilters}
         listings={listings}
-        filteredListings={displayedListings}
       />
     </div>
   );

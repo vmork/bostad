@@ -7,9 +7,6 @@ import { Button } from "./generic/Button";
 import { AreaMap } from "./AreaMap";
 import { AreaSidebar } from "./AreaSidebar";
 
-/** Identifies which area the sidebar is currently hovering */
-export type HoveredArea = { type: "district"; id: number } | { type: "region"; id: string } | null;
-
 // -- Geo data fetching (cached after first load) --
 
 let geoCache: {
@@ -37,7 +34,6 @@ type MapFilterModalProps = {
   filters: Filter<Listing>[];
   setFilters: (filters: Filter<Listing>[]) => void;
   listings: Listing[];
-  filteredListings: Listing[];
 };
 
 // -- Main component --
@@ -48,10 +44,8 @@ export function MapFilterModal({
   filters,
   setFilters,
   listings,
-  filteredListings,
 }: MapFilterModalProps) {
   const [geoData, setGeoData] = useState(geoCache);
-  const [hoveredArea, setHoveredArea] = useState<HoveredArea>(null);
 
   // Fetch geo data lazily on first open
   useEffect(() => {
@@ -151,12 +145,6 @@ export function MapFilterModal({
     : 0;
   const totalRegions = geoData ? Object.keys(geoData.hierarchy).length : 0;
 
-  // IDs of listings that pass all active filters (shown as accent-colored dots)
-  const filteredListingIds = useMemo(
-    () => new Set(filteredListings.map((l) => l.id)),
-    [filteredListings],
-  );
-
   return (
     <Modal
       open={open}
@@ -169,9 +157,7 @@ export function MapFilterModal({
           <span className="text-sm font-medium text-dark">Map filter</span>
           <span className="text-xs text-gs-3">
             {totalDistricts} districts &middot; {totalRegions} regions
-            {selectedDistricts.length > 0 && (
-              <> &middot; {selectedDistricts.length} selected</>
-            )}
+            {selectedDistricts.length > 0 && <> &middot; {selectedDistricts.length} selected</>}
           </span>
         </div>
         <Button size="default" onClick={onClose}>
@@ -187,11 +173,7 @@ export function MapFilterModal({
             <AreaMap
               regions={geoData.regions}
               districts={geoData.districts}
-              hierarchy={geoData.hierarchy}
-              selectedDistricts={selectedSet}
-              hoveredArea={hoveredArea}
               listings={listings}
-              filteredListingIds={filteredListingIds}
               onToggleDistrict={toggleDistrict}
               onToggleRegion={toggleRegion}
             />
@@ -217,7 +199,6 @@ export function MapFilterModal({
               onSetAllowNull={(allow) => updateDistrictFilter(selectedDistricts, allow)}
               onSelectAll={selectAll}
               onDeselectAll={deselectAll}
-              onHoverArea={setHoveredArea}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-gs-3">
