@@ -37,6 +37,7 @@ type MapFilterModalProps = {
   filters: Filter<Listing>[];
   setFilters: (filters: Filter<Listing>[]) => void;
   listings: Listing[];
+  filteredListings: Listing[];
 };
 
 // -- Main component --
@@ -47,6 +48,7 @@ export function MapFilterModal({
   filters,
   setFilters,
   listings,
+  filteredListings,
 }: MapFilterModalProps) {
   const [geoData, setGeoData] = useState(geoCache);
   const [hoveredArea, setHoveredArea] = useState<HoveredArea>(null);
@@ -143,6 +145,18 @@ export function MapFilterModal({
 
   if (!open) return null;
 
+  // Header stats: total districts, regions with selected children, selected count
+  const totalDistricts = geoData
+    ? Object.values(geoData.hierarchy).reduce((sum, ids) => sum + ids.length, 0)
+    : 0;
+  const totalRegions = geoData ? Object.keys(geoData.hierarchy).length : 0;
+
+  // IDs of listings that pass all active filters (shown as accent-colored dots)
+  const filteredListingIds = useMemo(
+    () => new Set(filteredListings.map((l) => l.id)),
+    [filteredListings],
+  );
+
   return (
     <Modal
       open={open}
@@ -153,11 +167,12 @@ export function MapFilterModal({
       <div className="flex items-center justify-between px-4 py-3 border-b border-gs-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-dark">Map filter</span>
-          {selectedDistricts.length > 0 && (
-            <span className="text-xs text-gs-3">
-              {selectedDistricts.length} area{selectedDistricts.length !== 1 ? "s" : ""} selected
-            </span>
-          )}
+          <span className="text-xs text-gs-3">
+            {totalDistricts} districts &middot; {totalRegions} regions
+            {selectedDistricts.length > 0 && (
+              <> &middot; {selectedDistricts.length} selected</>
+            )}
+          </span>
         </div>
         <Button size="default" onClick={onClose}>
           Done
@@ -176,6 +191,7 @@ export function MapFilterModal({
               selectedDistricts={selectedSet}
               hoveredArea={hoveredArea}
               listings={listings}
+              filteredListingIds={filteredListingIds}
               onToggleDistrict={toggleDistrict}
               onToggleRegion={toggleRegion}
             />

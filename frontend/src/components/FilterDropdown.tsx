@@ -257,44 +257,7 @@ function BooleanFilterRow({
     >
       <FilterRowLeftSide filter={filter} onFilterChange={onFilterChange} />
       <div className="flex items-center gap-2">
-        {filter.state.enabled && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={cn(
-                "text-xs rounded px-1.5 py-0.5 border cursor-pointer",
-                filter.state.value
-                  ? "border-primary/60 bg-primary/10 text-primary"
-                  : "border-gs-3/30 text-gs-3/70 hover:border-gs-3/60",
-              )}
-              onClick={() =>
-                onFilterChange({
-                  ...filter,
-                  state: { ...filter.state, value: true },
-                })
-              }
-            >
-              yes
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "text-xs rounded px-1.5 py-0.5 border cursor-pointer",
-                !filter.state.value
-                  ? "border-primary/60 bg-primary/10 text-primary"
-                  : "border-gs-3/30 text-gs-3/70 hover:border-gs-3/60",
-              )}
-              onClick={() =>
-                onFilterChange({
-                  ...filter,
-                  state: { ...filter.state, value: false },
-                })
-              }
-            >
-              no
-            </button>
-          </div>
-        )}
+        
         {/* "include unknown" toggle — only visible when filter is active and nulls exist */}
         {filter.state.enabled && filter.stats.nullCount > 0 && (
           <button

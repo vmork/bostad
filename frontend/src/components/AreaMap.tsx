@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,7 +8,7 @@ import {
   Pane,
   useMap,
 } from "react-leaflet";
-import type { Layer, LeafletMouseEvent, PathOptions } from "leaflet";
+import type { Layer, LeafletMouseEvent, Path, PathOptions } from "leaflet";
 import type { Feature, Polygon, MultiPolygon } from "geojson";
 import type { Listing } from "../api/models";
 import type {
@@ -23,14 +23,15 @@ import "leaflet/dist/leaflet.css";
 
 // -- Constants --
 
-/** Zoom level at which we switch from regions to districts */
+// Zoom level at which we switch from regions to districts
 const LAYER_SWITCH_ZOOM = 11;
+// Zoom level at which listing tooltips appear
+const SHOW_TOOLTIP_ZOOM = 11;
 
-// Bounds for Stockholm county with some padding
 const STOCKHOLM_CENTER: [number, number] = [59.33, 18.07];
 const DEFAULT_ZOOM = 9;
 
-// -- Styling --
+// -- Polygon styling --
 
 const baseStyle: PathOptions = {
   weight: 1.5,
@@ -53,6 +54,20 @@ const hoverStyle: PathOptions = {
   fillOpacity: 0.25,
 };
 
+// -- Listing dot styling --
+
+const filteredDotStyle: PathOptions = {
+  fillColor: "#c32626",
+  fillOpacity: 1.0,
+  stroke: false,
+};
+
+const unfilteredDotStyle: PathOptions = {
+  fillColor: "#94a3b8", // slate-400
+  fillOpacity: 0.35,
+  stroke: false,
+};
+
 // -- Zoom-responsive layer visibility --
 
 /** Watches zoom level and toggles visibility of the two layers. */
@@ -61,7 +76,6 @@ function ZoomWatcher({ onZoomChange }: { onZoomChange: (zoom: number) => void })
   useEffect(() => {
     const handler = () => onZoomChange(map.getZoom());
     map.on("zoomend", handler);
-    // Fire immediately with current zoom
     onZoomChange(map.getZoom());
     return () => {
       map.off("zoomend", handler);
@@ -79,6 +93,8 @@ type AreaMapProps = {
   selectedDistricts: Set<number>;
   hoveredArea: HoveredArea;
   listings: Listing[];
+  /** IDs of listings that pass all current filters — shown with accent color */
+  filteredListingIds: Set<string>;
   onToggleDistrict: (districtId: number) => void;
   onToggleRegion: (municipalityId: string) => void;
 };
@@ -107,6 +123,21 @@ function ListingDotTooltip({
   );
 }
 
+// -- Helpers --
+
+/** Compute the style for a region polygon given current selection state. */
+function computeRegionStyle(
+  municipalityId: string,
+  hierarchy: AreaHierarchy,
+  selectedDistricts: Set<number>,
+): PathOptions {
+  const dIds = hierarchy[municipalityId] ?? [];
+  const selectedCount = dIds.filter((id) => selectedDistricts.has(id)).length;
+  if (selectedCount === dIds.length && dIds.length > 0) return selectedStyle;
+  if (selectedCount > 0) return { ...selectedStyle, fillOpacity: 0.1 };
+  return baseStyle;
+}
+
 // -- Main component --
 
 export function AreaMap({
@@ -116,28 +147,26 @@ export function AreaMap({
   selectedDistricts,
   hoveredArea,
   listings,
+  filteredListingIds,
   onToggleDistrict,
   onToggleRegion,
 }: AreaMapProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const showDistricts = zoom > LAYER_SWITCH_ZOOM;
 
-  // Serialize hover state for GeoJSON key (sidebar hover triggers re-render)
-  const hoverKey = hoveredArea ? `${hoveredArea.type}-${hoveredArea.id}` : "none";
+  // Layer refs for imperative style updates (avoids expensive GeoJSON re-mount)
+  const districtLayersRef = useRef(new Map<number, Path>());
+  const regionLayersRef = useRef(new Map<string, Path>());
 
-  // Use keys that change with selections/hover to force GeoJSON re-render
-  // (react-leaflet GeoJSON doesn't update styles reactively)
-  const districtKey = useMemo(
-    () => `districts-${[...selectedDistricts].sort().join(",")}-${hoverKey}`,
-    [selectedDistricts, hoverKey],
-  );
-  const regionKey = useMemo(() => {
-    const regionStates = Object.entries(hierarchy).map(([mId, dIds]) => {
-      const count = dIds.filter((id) => selectedDistricts.has(id)).length;
-      return `${mId}:${count}`;
-    });
-    return `regions-${regionStates.join(",")}-${hoverKey}`;
-  }, [selectedDistricts, hierarchy, hoverKey]);
+  // Refs for values accessed inside stable event handlers (avoids stale closures).
+  // GeoJSON key is stable, so onEachFeature only runs once per mount — handlers
+  // must read current state from refs rather than captured closure variables.
+  const selectedDistrictsRef = useRef(selectedDistricts);
+  selectedDistrictsRef.current = selectedDistricts;
+  const onToggleDistrictRef = useRef(onToggleDistrict);
+  onToggleDistrictRef.current = onToggleDistrict;
+  const onToggleRegionRef = useRef(onToggleRegion);
+  onToggleRegionRef.current = onToggleRegion;
 
   // Resolve which district IDs are hovered (sidebar hover expands region → all children)
   const hoveredDistrictIds = useMemo(() => {
@@ -148,21 +177,37 @@ export function AreaMap({
 
   const hoveredRegionId = hoveredArea?.type === "region" ? hoveredArea.id : null;
 
-  // -- District layer callbacks --
+  // -- Imperative style updates (selection + hover) --
 
-  const districtStyle = useCallback(
-    (feature?: Feature<Polygon | MultiPolygon, DistrictProperties>) => {
-      if (!feature) return baseStyle;
-      const id = feature.properties.stadsdel_id;
-      if (hoveredDistrictIds.has(id)) return hoverStyle;
-      return selectedDistricts.has(id) ? selectedStyle : baseStyle;
-    },
-    [selectedDistricts, hoveredDistrictIds],
-  );
+  useEffect(() => {
+    for (const [id, layer] of districtLayersRef.current) {
+      const style = hoveredDistrictIds.has(id)
+        ? hoverStyle
+        : selectedDistricts.has(id)
+          ? selectedStyle
+          : baseStyle;
+      layer.setStyle(style);
+      if (hoveredDistrictIds.has(id)) layer.bringToFront();
+    }
+  }, [hoveredDistrictIds, selectedDistricts]);
+
+  useEffect(() => {
+    for (const [mId, layer] of regionLayersRef.current) {
+      let style: PathOptions;
+      if (hoveredRegionId === mId) style = hoverStyle;
+      else style = computeRegionStyle(mId, hierarchy, selectedDistricts);
+      layer.setStyle(style);
+      if (hoveredRegionId === mId) layer.bringToFront();
+    }
+  }, [hoveredRegionId, selectedDistricts, hierarchy]);
+
+  // -- District layer setup (stable — only runs on GeoJSON mount) --
 
   const onEachDistrict = useCallback(
     (feature: Feature<Polygon | MultiPolygon, DistrictProperties>, layer: Layer) => {
-      // Permanent label shown on hover — styled to match polygon hover color
+      const id = feature.properties.stadsdel_id;
+      districtLayersRef.current.set(id, layer as Path);
+
       layer.bindTooltip(feature.properties.name, {
         permanent: true,
         direction: "center",
@@ -171,48 +216,31 @@ export function AreaMap({
       });
 
       layer.on({
-        click: () => onToggleDistrict(feature.properties.stadsdel_id),
+        click: () => onToggleDistrictRef.current(id),
         mouseover: (e: LeafletMouseEvent) => {
           e.target.setStyle(hoverStyle);
           e.target.bringToFront();
           e.target.getTooltip()?.setOpacity(1);
         },
         mouseout: (e: LeafletMouseEvent) => {
-          const id = feature.properties.stadsdel_id;
-          if (hoveredDistrictIds.has(id)) e.target.setStyle(hoverStyle);
-          else e.target.setStyle(selectedDistricts.has(id) ? selectedStyle : baseStyle);
+          e.target.setStyle(
+            selectedDistrictsRef.current.has(id) ? selectedStyle : baseStyle,
+          );
           e.target.getTooltip()?.setOpacity(0);
         },
       });
     },
-    [selectedDistricts, hoveredDistrictIds, onToggleDistrict],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
-  // -- Region layer callbacks --
-
-  /** Compute style for a region based on selection + hover state */
-  const getRegionStyle = useCallback(
-    (municipalityId: string): PathOptions => {
-      if (hoveredRegionId === municipalityId) return hoverStyle;
-      const dIds = hierarchy[municipalityId] ?? [];
-      const selectedCount = dIds.filter((id) => selectedDistricts.has(id)).length;
-      if (selectedCount === dIds.length && dIds.length > 0) return selectedStyle;
-      if (selectedCount > 0) return { ...selectedStyle, fillOpacity: 0.1 };
-      return baseStyle;
-    },
-    [selectedDistricts, hierarchy, hoveredRegionId],
-  );
-
-  const regionStyle = useCallback(
-    (feature?: Feature<Polygon | MultiPolygon, RegionProperties>) => {
-      if (!feature) return baseStyle;
-      return getRegionStyle(feature.properties.municipality_id);
-    },
-    [getRegionStyle],
-  );
+  // -- Region layer setup (stable — only runs on GeoJSON mount) --
 
   const onEachRegion = useCallback(
     (feature: Feature<Polygon | MultiPolygon, RegionProperties>, layer: Layer) => {
+      const mId = feature.properties.municipality_id;
+      regionLayersRef.current.set(mId, layer as Path);
+
       layer.bindTooltip(feature.properties.name, {
         permanent: true,
         direction: "center",
@@ -221,35 +249,42 @@ export function AreaMap({
       });
 
       layer.on({
-        click: () => onToggleRegion(feature.properties.municipality_id),
+        click: () => onToggleRegionRef.current(mId),
         mouseover: (e: LeafletMouseEvent) => {
           e.target.setStyle(hoverStyle);
           e.target.bringToFront();
           e.target.getTooltip()?.setOpacity(1);
         },
         mouseout: (e: LeafletMouseEvent) => {
-          e.target.setStyle(getRegionStyle(feature.properties.municipality_id));
+          e.target.setStyle(
+            computeRegionStyle(mId, hierarchy, selectedDistrictsRef.current),
+          );
           e.target.getTooltip()?.setOpacity(0);
         },
       });
     },
-    [getRegionStyle, onToggleRegion],
+    // hierarchy is stable (loaded once from geo cache)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hierarchy],
   );
 
   // -- Listing dot data --
+
   const listingDots = useMemo(
     () =>
       listings
         .filter((l) => l.coords)
         .map((l) => ({
+          id: l.id,
           lat: l.coords!.lat,
           lng: l.coords!.long,
           name: l.name,
           rent: l.rent,
           areaSqm: l.areaSqm,
           numRooms: l.numRooms,
+          isFiltered: filteredListingIds.has(l.id),
         })),
-    [listings],
+    [listings, filteredListingIds],
   );
 
   return (
@@ -269,9 +304,9 @@ export function AreaMap({
       {/* District polygons (visible when zoomed in) */}
       {showDistricts && (
         <GeoJSON
-          key={districtKey}
+          key="districts"
           data={districts}
-          style={districtStyle as any}
+          style={() => baseStyle}
           onEachFeature={onEachDistrict as any}
         />
       )}
@@ -279,34 +314,32 @@ export function AreaMap({
       {/* Region polygons (visible when zoomed out) */}
       {!showDistricts && (
         <GeoJSON
-          key={regionKey}
+          key="regions"
           data={regions}
-          style={regionStyle as any}
+          style={() => baseStyle}
           onEachFeature={onEachRegion as any}
         />
       )}
 
       {/* Listing dots — rendered in a custom pane above polygons */}
       <Pane name="listing-dots" style={{ zIndex: 450 }}>
-        {listingDots.map((dot, i) => (
+        {listingDots.map((dot) => (
           <CircleMarker
-            key={i}
+            key={dot.id}
             center={[dot.lat, dot.lng]}
-            radius={4}
-            pathOptions={{
-              fillColor: "#c32626",
-              fillOpacity: 1.0,
-              stroke: false,
-            }}
+            radius={dot.isFiltered ? 4 : 3}
+            pathOptions={dot.isFiltered ? filteredDotStyle : unfilteredDotStyle}
           >
-            <Tooltip direction="top" offset={[0, -4]} className="listing-tooltip">
-              <ListingDotTooltip
-                name={dot.name}
-                rent={dot.rent}
-                areaSqm={dot.areaSqm}
-                numRooms={dot.numRooms}
-              />
-            </Tooltip>
+            {zoom > SHOW_TOOLTIP_ZOOM && (
+              <Tooltip direction="top" offset={[0, -4]} className="listing-tooltip">
+                <ListingDotTooltip
+                  name={dot.name}
+                  rent={dot.rent}
+                  areaSqm={dot.areaSqm}
+                  numRooms={dot.numRooms}
+                />
+              </Tooltip>
+            )}
           </CircleMarker>
         ))}
       </Pane>

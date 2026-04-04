@@ -229,14 +229,14 @@ export function AreaSidebar({
         })}
       </div>
 
-      {/* Unknown location toggle at the bottom */}
+      {/* Footer */}
       <div className="border-t border-gs-2 px-3 py-2">
         <div
           className="flex items-center gap-2 cursor-pointer"
           onClick={() => onSetAllowNull(!allowNull)}
         >
           <Checkbox checked={allowNull} onChange={() => onSetAllowNull(!allowNull)} />
-          <span className="text-sm text-dark">Unknown location</span>
+          <span className="text-sm text-dark">Other locations</span>
           {nullCount > 0 && <span className="text-xxs text-gs-3 tabular-nums">{nullCount}</span>}
         </div>
       </div>
