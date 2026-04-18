@@ -69,6 +69,7 @@ export type RangeFilterStats = {
 
 export type SetFilterStats<V = any> = {
   allOptions: V[];
+  optionCounts: Map<V, number>;
   nullCount: number;
 };
 
@@ -170,18 +171,31 @@ function _filterItemByBoolean<T>(x: T, filter: BooleanFilter<T>) {
   return value === filter.state.value;
 }
 
-export function applyFiltersToList<T>(xs: T[], filters: Filter<T>[]) {
+function _itemMatchesFilter<T>(x: T, filter: Filter<T>) {
+  switch (filter.type) {
+    case "range":
+      return _filterItemByRange(x, filter);
+    case "set":
+      return _filterItemBySet(x, filter);
+    case "boolean":
+      return _filterItemByBoolean(x, filter);
+  }
+}
+
+export function applyFiltersToList<T>(
+  xs: T[],
+  filters: Filter<T>[],
+  options?: { excludeFilterIds?: Iterable<string> },
+) {
+  const excludedFilterIds = options?.excludeFilterIds
+    ? new Set(options.excludeFilterIds)
+    : undefined;
+
   return xs.filter((x) => {
     return filters.every((filter) => {
+      if (excludedFilterIds?.has(filter.id)) return true;
       if (!filter.state.enabled) return true;
-      switch (filter.type) {
-        case "range":
-          return _filterItemByRange(x, filter);
-        case "set":
-          return _filterItemBySet(x, filter);
-        case "boolean":
-          return _filterItemByBoolean(x, filter);
-      }
+      return _itemMatchesFilter(x, filter);
     });
   });
 }
@@ -240,18 +254,31 @@ function _computeRangeStats<T>(def: RangeFilterDef<T>, data: T[]): RangeFilterSt
   return { absMin, absMax, nullCount };
 }
 
-function _computeSetStats<T, V>(def: SetFilterDef<T, V>, data: T[]): SetFilterStats<V> {
+function _computeSetStats<T, V>(
+  def: SetFilterDef<T, V>,
+  data: T[],
+  allOptionsData: T[] = data,
+): SetFilterStats<V> {
   const allOptions: V[] = [];
+  const optionCounts = new Map<V, number>();
   let nullCount = 0;
+
+  for (const obj of allOptionsData) {
+    const value = keyLookup(obj, def.key);
+    if (value == null) continue;
+    if (!allOptions.includes(value as V)) allOptions.push(value as V);
+  }
+
   for (const obj of data) {
     const value = keyLookup(obj, def.key);
     if (value == null) {
       nullCount++;
       continue;
     }
-    if (!allOptions.includes(value as V)) allOptions.push(value as V);
+    optionCounts.set(value as V, (optionCounts.get(value as V) ?? 0) + 1);
   }
-  return { allOptions, nullCount };
+
+  return { allOptions, optionCounts, nullCount };
 }
 
 function _computeBooleanStats<T>(def: BooleanFilterDef<T>, data: T[]): BooleanFilterStats {
@@ -297,6 +324,7 @@ export function createSetFilter<T, V = any>(
   def: SetFilterDef<T, V>,
   data: T[],
   state?: Partial<SetFilterState<V>>,
+  allOptionsData?: T[],
 ): SetFilter<T, V> {
   return {
     type: "set",
@@ -309,7 +337,7 @@ export function createSetFilter<T, V = any>(
       ...def.defaultState,
       ...state,
     },
-    stats: _computeSetStats(def, data),
+    stats: _computeSetStats(def, data, allOptionsData),
   };
 }
 
@@ -331,4 +359,33 @@ export function createBooleanFilter<T>(
     },
     stats: _computeBooleanStats(def, data),
   };
+}
+
+// Recompute display stats from the listings that survive all other active filters.
+// Set filters keep their full option universe from the complete dataset so pills can
+// show zero-count options without disappearing from the UI.
+export function deriveContextualFilterStats<T>(filters: Filter<T>[], data: T[]): Filter<T>[] {
+  return filters.map((filter) => {
+    const scopedData = applyFiltersToList(data, filters, {
+      excludeFilterIds: [filter.id],
+    });
+
+    switch (filter.type) {
+      case "range":
+        return {
+          ...filter,
+          stats: _computeRangeStats(filter.def, scopedData),
+        };
+      case "set":
+        return {
+          ...filter,
+          stats: _computeSetStats(filter.def, scopedData, data),
+        };
+      case "boolean":
+        return {
+          ...filter,
+          stats: _computeBooleanStats(filter.def, scopedData),
+        };
+    }
+  });
 }

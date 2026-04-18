@@ -59,19 +59,14 @@ export function readCachedListings(cacheKey: string): CachedListings | null {
   }
 }
 
-export function writeCachedListings(
-  cacheKey: string,
-  payload: CachedListings,
-): void {
+export function writeCachedListings(cacheKey: string, payload: CachedListings): void {
   if (typeof window === "undefined") {
     return;
   }
   window.localStorage.setItem(cacheKey, JSON.stringify(payload));
 }
 
-export function isAllListingsResponse(
-  value: unknown,
-): value is AllListingsResponse {
+export function isAllListingsResponse(value: unknown): value is AllListingsResponse {
   if (!value || typeof value !== "object") {
     return false;
   }
@@ -163,10 +158,7 @@ export function openListingsStream(
     }
 
     if (parsedEvent.event === "failed") {
-      fail(
-        parsedEvent.progress.message ?? "Failed to fetch listings.",
-        parsedEvent.progress,
-      );
+      fail(parsedEvent.progress.message ?? "Failed to fetch listings.", parsedEvent.progress);
     }
   };
 
@@ -180,9 +172,7 @@ export function openListingsStream(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(
-          options ?? { sources: [ListingSourceValues.bostadsthlm] },
-        ),
+        body: JSON.stringify(options ?? { sources: [ListingSourceValues.bostadsthlm] }),
         signal: abortController.signal,
       });
 
@@ -230,8 +220,7 @@ export function openListingsStream(
       if (abortController.signal.aborted || isFinished) {
         return;
       }
-      const message =
-        error instanceof Error ? error.message : "Unknown stream error";
+      const message = error instanceof Error ? error.message : "Unknown stream error";
       fail(`The listings stream connection was interrupted: ${message}`);
     }
   })();

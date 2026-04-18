@@ -29,16 +29,21 @@ function replaceFilter(
 // Builds range/options info text with optional unit suffix and null count
 function getFilterInfoString(filter: Filter<Listing>): string {
   const nullSuffix = filter.stats.nullCount > 0 ? ` (${filter.stats.nullCount} null)` : "";
+
   if (filter.type === "range") {
     if (!isFinite(filter.stats.absMin)) return "No data";
     const unit = filter.def.unit ? ` ${filter.def.unit}` : "";
     return `${filter.stats.absMin} to ${filter.stats.absMax}${unit}${nullSuffix}`;
+
   } else if (filter.type === "set") {
     if (filter.stats.allOptions.length === 0) return "No data";
     return `${filter.stats.allOptions.length} options${nullSuffix}`;
+
   } else if (filter.type === "boolean") {
-    return `${filter.stats.trueCount} true, ${filter.stats.falseCount} false${nullSuffix}`;
+    const totalCount = filter.stats.trueCount + filter.stats.falseCount + filter.stats.nullCount;
+    return `${filter.stats.trueCount}/${totalCount}${nullSuffix}`;
   }
+
   return "No data";
 }
 
@@ -209,7 +214,7 @@ function SetFilterRow({
             });
           }}
           keyFn={(option) => option}
-          displayFn={(option) => String(option)}
+          displayFn={(option) => `${String(option)} (${filter.stats.optionCounts.get(option) ?? 0})`}
         />
       </Dropdown.SubmenuContent>
     </Dropdown.Submenu>

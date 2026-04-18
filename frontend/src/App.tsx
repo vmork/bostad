@@ -10,7 +10,7 @@ import { SortDropdown } from "./components/SortDropdown";
 import { type Listing, type ListingParseError } from "./api/models";
 import { useListingsData } from "./hooks/useListingsData";
 import { useLocalStorage } from "./hooks/useLocalStorage";
-import { applyFiltersToList, sortList } from "./lib/filterSort";
+import { applyFiltersToList, deriveContextualFilterStats, sortList } from "./lib/filterSort";
 import {
   buildSortEntries,
   hydrateFilters,
@@ -109,6 +109,11 @@ export default function App() {
     setStoredSortStates(serializeSortEntries(sortEntries));
   }, [sortEntries, setStoredSortStates]);
 
+  const displayFilters = useMemo(
+    () => deriveContextualFilterStats(filters, listings),
+    [filters, listings],
+  );
+
   const displayedListings = useMemo(() => {
     const filtered = applyFiltersToList(listings, filters);
     return sortList(filtered, sortEntries);
@@ -142,20 +147,20 @@ export default function App() {
                 Updated {formatUpdatedAt(listingsQuery.updatedAt)}
                 {listingsQuery.loggedIn !== null && (
                   <span className="ml-2">
-                    · {listingsQuery.loggedIn ? "logged in" : "not logged in"}
+                    · {listingsQuery.loggedIn ? "Logged in" : "Not logged in"}
                   </span>
                 )}
                 {(listingsQuery.refreshDelta.added > 0 ||
                   listingsQuery.refreshDelta.removed > 0) && (
                   <span className="text-primary ml-2 font-medium">
                     {listingsQuery.refreshDelta.added > 0 && (
-                      <>Added {listingsQuery.refreshDelta.added}</>
+                      <> · Added {listingsQuery.refreshDelta.added}</>
                     )}
                     {listingsQuery.refreshDelta.added > 0 &&
                       listingsQuery.refreshDelta.removed > 0 &&
                       " · "}
                     {listingsQuery.refreshDelta.removed > 0 && (
-                      <>Removed {listingsQuery.refreshDelta.removed}</>
+                      <> · Removed {listingsQuery.refreshDelta.removed}</>
                     )}
                   </span>
                 )}
@@ -184,7 +189,7 @@ export default function App() {
 
             {listingsQuery.hasCachedData && (
               <>
-                <FilterDropdown filters={filters} setFilters={setFilters} />
+                <FilterDropdown filters={displayFilters} setFilters={setFilters} />
 
                 <Button
                   size="large"
@@ -217,7 +222,7 @@ export default function App() {
       <MapFilterModal
         open={mapOpen}
         onClose={() => setMapOpen(false)}
-        filters={filters}
+        filters={displayFilters}
         setFilters={setFilters}
         listings={listings}
       />

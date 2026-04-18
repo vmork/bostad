@@ -14,8 +14,12 @@ type AreaSidebarProps = {
   allowNull: boolean;
   /** Listing counts keyed by district_id, with null key for unknown-location count */
   countsByDistrict: Map<number | null, number>;
+  hoveredDistrictId: number | null;
+  hoveredRegionId: string | null;
   onToggleDistrict: (districtId: number) => void;
   onToggleRegion: (municipalityId: string) => void;
+  onHoverDistrict: (districtId: number | null) => void;
+  onHoverRegion: (municipalityId: string | null) => void;
   onSetAllowNull: (allow: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
@@ -55,8 +59,6 @@ function buildRegionTree(
 
 // -- Checkbox (matches FilterDropdown style exactly) --
 
-
-
 // -- Main component --
 
 export function AreaSidebar({
@@ -66,8 +68,12 @@ export function AreaSidebar({
   selectedDistricts,
   allowNull,
   countsByDistrict,
+  hoveredDistrictId,
+  hoveredRegionId,
   onToggleDistrict,
   onToggleRegion,
+  onHoverDistrict,
+  onHoverRegion,
   onSetAllowNull,
   onSelectAll,
   onDeselectAll,
@@ -135,9 +141,15 @@ export function AreaSidebar({
               <div
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 hover:bg-gs-1 border-b border-gs-2/50",
+                  hoveredRegionId === region.municipalityId && "bg-sky-100/80",
                   someSelected && "bg-gs-2/30",
                   allSelected && "bg-gs-2/50",
                 )}
+                onPointerOverCapture={() => onHoverRegion(region.municipalityId)}
+                onPointerMoveCapture={() => onHoverRegion(region.municipalityId)}
+                onPointerLeave={() => {
+                  if (hoveredRegionId === region.municipalityId) onHoverRegion(null);
+                }}
               >
                 <button
                   type="button"
@@ -177,9 +189,15 @@ export function AreaSidebar({
                         key={district.id}
                         className={cn(
                           "flex items-center gap-2 pl-10 pr-3 py-1 cursor-pointer hover:bg-gs-1",
+                          hoveredDistrictId === district.id && "bg-sky-100/80",
                           isSelected && "bg-gs-2/30",
                         )}
                         onClick={() => onToggleDistrict(district.id)}
+                        onPointerOverCapture={() => onHoverDistrict(district.id)}
+                        onPointerMoveCapture={() => onHoverDistrict(district.id)}
+                        onPointerLeave={() => {
+                          if (hoveredDistrictId === district.id) onHoverDistrict(null);
+                        }}
                       >
                         <Checkbox
                           checked={isSelected}

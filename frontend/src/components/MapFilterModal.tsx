@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Listing } from "../api/models";
-import type { Filter, SetFilter } from "../lib/filterSort";
+import { applyFiltersToList, type Filter, type SetFilter } from "../lib/filterSort";
 import type { AreaHierarchy, DistrictCollection, RegionCollection } from "../lib/geoTypes";
 import { Modal } from "./generic/Modal";
 import { Button } from "./generic/Button";
@@ -46,6 +46,8 @@ export function MapFilterModal({
   listings,
 }: MapFilterModalProps) {
   const [geoData, setGeoData] = useState(geoCache);
+  const [hoveredDistrictId, setHoveredDistrictId] = useState<number | null>(null);
+  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
   // Fetch geo data lazily on first open
   useEffect(() => {
@@ -62,6 +64,18 @@ export function MapFilterModal({
   const selectedDistricts = useMemo(() => districtFilter?.state.included ?? [], [districtFilter]);
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
   const allowNull = districtFilter?.state.allowNull ?? true;
+
+  // Keep all dots on the map, but visually mute listings excluded by the current filter set.
+  const includedListingIds = useMemo(
+    () => new Set(applyFiltersToList(listings, filters).map((listing) => listing.id)),
+    [listings, filters],
+  );
+
+  // Sidebar counts should answer "what would remain if I changed the map filter next?"
+  const listingsMatchingOtherFilters = useMemo(
+    () => applyFiltersToList(listings, filters, { excludeFilterIds: ["districtId"] }),
+    [listings, filters],
+  );
 
   /** Replace the districtId filter state immutably */
   const updateDistrictFilter = useCallback(
@@ -116,18 +130,36 @@ export function MapFilterModal({
   // Compute listing counts per district
   const countsByDistrict = useMemo(() => {
     const counts = new Map<number | null, number>();
-    for (const listing of listings) {
+    for (const listing of listingsMatchingOtherFilters) {
       const key = listing.districtId ?? null;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return counts;
-  }, [listings]);
+  }, [listingsMatchingOtherFilters]);
 
   // All district IDs available in the hierarchy
   const allDistrictIds = useMemo(() => {
     if (!geoData) return [];
     return Object.values(geoData.hierarchy).flat();
   }, [geoData]);
+
+  const selectedRegionIds = useMemo(() => {
+    if (!geoData) return [];
+    return Object.entries(geoData.hierarchy)
+      .filter(
+        ([, districtIds]) =>
+          districtIds.length > 0 && districtIds.every((id) => selectedSet.has(id)),
+      )
+      .map(([municipalityId]) => municipalityId);
+  }, [geoData, selectedSet]);
+
+  const partiallySelectedRegionIds = useMemo(() => {
+    if (!geoData) return [];
+    return Object.entries(geoData.hierarchy)
+      .filter(([, districtIds]) => districtIds.some((id) => selectedSet.has(id)))
+      .filter(([, districtIds]) => !districtIds.every((id) => selectedSet.has(id)))
+      .map(([municipalityId]) => municipalityId);
+  }, [geoData, selectedSet]);
 
   const selectAll = useCallback(() => {
     updateDistrictFilter([...allDistrictIds], true);
@@ -136,6 +168,16 @@ export function MapFilterModal({
   const deselectAll = useCallback(() => {
     updateDistrictFilter([], allowNull);
   }, [allowNull, updateDistrictFilter]);
+
+  const handleHoverDistrict = useCallback((districtId: number | null) => {
+    setHoveredDistrictId(districtId);
+    if (districtId != null) setHoveredRegionId(null);
+  }, []);
+
+  const handleHoverRegion = useCallback((municipalityId: string | null) => {
+    setHoveredRegionId(municipalityId);
+    if (municipalityId != null) setHoveredDistrictId(null);
+  }, []);
 
   if (!open) return null;
 
@@ -174,6 +216,12 @@ export function MapFilterModal({
               regions={geoData.regions}
               districts={geoData.districts}
               listings={listings}
+              includedListingIds={includedListingIds}
+              selectedDistrictIds={selectedDistricts}
+              selectedRegionIds={selectedRegionIds}
+              partiallySelectedRegionIds={partiallySelectedRegionIds}
+              hoveredDistrictId={hoveredDistrictId}
+              hoveredRegionId={hoveredRegionId}
               onToggleDistrict={toggleDistrict}
               onToggleRegion={toggleRegion}
             />
@@ -194,8 +242,12 @@ export function MapFilterModal({
               selectedDistricts={selectedDistricts}
               allowNull={allowNull}
               countsByDistrict={countsByDistrict}
+              hoveredDistrictId={hoveredDistrictId}
+              hoveredRegionId={hoveredRegionId}
               onToggleDistrict={toggleDistrict}
               onToggleRegion={toggleRegion}
+              onHoverDistrict={handleHoverDistrict}
+              onHoverRegion={handleHoverRegion}
               onSetAllowNull={(allow) => updateDistrictFilter(selectedDistricts, allow)}
               onSelectAll={selectAll}
               onDeselectAll={deselectAll}
