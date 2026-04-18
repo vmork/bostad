@@ -63,17 +63,15 @@ input:focus {
   outline: 1px solid var(--color-primary);
 }
 
-/* Leaflet: listing dot tooltip — must sit above all SVG layers */
-.listing-tooltip {
-  z-index: 1000 !important;
-  padding: 6px 10px !important;
-  border-radius: 6px !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+/* MapLibre: listing dot popup */
+.listing-popup .maplibregl-popup-content {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   font-family: var(--font-sans);
 }
 
-/* Leaflet: disable focus outline / bounding box on clicked polygons */
-.leaflet-interactive:focus {
-  outline: none !important;
+.listing-popup .maplibregl-popup-tip {
+  border-top-color: #e5e7eb;
 }

@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  GeoJSON,
-  CircleMarker,
-  Tooltip,
-  Pane,
-  useMap,
-} from "react-leaflet";
-import type { LatLngBoundsExpression, Layer, Path, PathOptions } from "leaflet";
-import type { Feature, Polygon, MultiPolygon } from "geojson";
-import type { Listing } from "../api/models";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Map, Marker, Source, Layer, Popup } from "react-map-gl/maplibre";
+import type { MapLayerMouseEvent, MapRef } from "react-map-gl/maplibre";
+import type { LngLatBoundsLike } from "maplibre-gl";
 import type {
-  DistrictCollection,
-  DistrictProperties,
-  RegionCollection,
-  RegionProperties,
-} from "../lib/geoTypes";
-import "leaflet/dist/leaflet.css";
+  ExpressionSpecification,
+  FillLayerSpecification,
+  LineLayerSpecification,
+  CircleLayerSpecification,
+  SymbolLayerSpecification,
+} from "maplibre-gl";
+import type { Feature, FeatureCollection, Point } from "geojson";
+import type { Listing } from "../api/models";
+import type { DistrictCollection, RegionCollection } from "../lib/geoTypes";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 // -- Constants --
 
@@ -25,137 +20,115 @@ import "leaflet/dist/leaflet.css";
 const LAYER_SWITCH_ZOOM = 11;
 // Zoom level at which listing tooltips appear
 const SHOW_TOOLTIP_ZOOM = LAYER_SWITCH_ZOOM;
+// Zoom level at which active listings switch from dots to clickable rent tags
+const SHOW_RENT_LABEL_ZOOM = 13;
+const RENT_LABEL_TOOLTIP_OFFSET = 22;
 
-const MAP_BOUNDS: LatLngBoundsExpression = [
-  [57, 14],
-  [61.5, 22.5],
-];
-
-const STOCKHOLM_CENTER: [number, number] = [59.33, 18.07];
+const STOCKHOLM_CENTER = { longitude: 18.07, latitude: 59.33 };
 const DEFAULT_ZOOM = 9;
 const MIN_ZOOM = 8;
+const MAX_BOUNDS: LngLatBoundsLike = [14, 57, 22.5, 61.5]; // [west, south, east, north]
 
-// Leaflet defaults place overlay SVG layers around z-index 400.
-// We keep explicit named levels so the zoom-specific ordering is easy to reason about.
-const REGION_OUTLINE_PANE_Z_INDEX = 405;
-const POLYGON_PANE_Z_INDEX = 410;
-const DOTS_BELOW_POLYGONS_Z_INDEX = 390;
-const DOTS_ABOVE_POLYGONS_Z_INDEX = 420;
+// CartoDB Positron vector basemap (free, no API key)
+const BASEMAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-// -- Listing dot styling --
+// -- Basemap label hiding --
+// Hide built-in place/area name labels (we render our own from GeoJSON).
+// Road names, water names, and POI labels are kept.
+const HIDDEN_LABEL_PREFIXES = [
+  "place_",    // city, town, suburb, hamlet, village, country, state, continent
+  "poi_",      // stadium, park
+];
 
-const ACTIVE_DOT_STYLE = {
-  fillColor: "#812020",
-  color: "#000000",
-  opacity: 1.0,
-  fillOpacity: 0.9,
-  stroke: true,
-  weight: 0.75,
-  radius: 3,
+// -- Layer IDs --
+
+const DISTRICT_FILL = "district-fill";
+const DISTRICT_LINE = "district-line";
+const DISTRICT_LABEL = "district-label";
+const REGION_FILL = "region-fill";
+const REGION_LINE = "region-line";
+const REGION_OUTLINE = "region-outline";
+const REGION_LABEL = "region-label";
+const DOTS_FILTERED = "dots-filtered";
+const DOTS_ACTIVE = "dots-active";
+
+// Layers that respond to click/hover events
+const INTERACTIVE_LAYERS = [DISTRICT_FILL, REGION_FILL];
+
+// -- Polygon style tokens --
+// Each state maps to fill, fill-opacity, stroke, stroke-opacity, and stroke-width values.
+
+const S_DEFAULT = { fill: "#bfdbfe", fillOp: 0.06, stroke: "#5b6b80", strokeOp: 0.65, w: 1 };
+const S_SELECTED = { fill: "#60a5fa", fillOp: 0.24, stroke: "#2563eb", strokeOp: 0.9, w: 2 };
+const S_PARTIAL = { fill: "#93c5fd", fillOp: 0.16, stroke: "#3b82f6", strokeOp: 0.8, w: 2 };
+const S_HOVERED = { fill: "#60a5fa", fillOp: 0.34, stroke: "#1d4ed8", strokeOp: 0.95, w: 3 };
+
+// -- Area label styling --
+
+const AREA_LABEL_LAYOUT: SymbolLayerSpecification["layout"] = {
+  "text-field": ["get", "name"],
+  "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 11, 11],
+  "text-anchor": "center",
+  "text-max-width": 7,
 };
 
-const FILTERED_OUT_DOT_STYLE = {
-  fillColor: "#bd8d8d",
-  fillOpacity: 0.5,
-  radius: 3,
-  stroke: false,
+const AREA_LABEL_PAINT: SymbolLayerSpecification["paint"] = {
+  "text-color": "#3a4a5a",
+  "text-halo-color": "rgba(255,255,255,0.85)",
+  "text-halo-width": 1,
 };
 
-const REGION_OUTLINE_STYLE: PathOptions = {
-  color: "#4f5f72",
-  fillOpacity: 0,
-  interactive: false,
-  opacity: 0.95,
-  weight: 2.25,
+// -- Dot styling --
+
+const ACTIVE_DOT: CircleLayerSpecification["paint"] = {
+  "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1.75, 11, 2.75, 13, 4.5],
+  "circle-color": "#812020",
+  "circle-opacity": 0.9,
+  "circle-stroke-color": "#000000",
+  "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 13, 0.9],
+  "circle-stroke-opacity": 1.0,
 };
+
+const FILTERED_DOT: CircleLayerSpecification["paint"] = {
+  "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 1.25, 11, 2, 13, 3],
+  "circle-color": "#bd8d8d",
+  "circle-opacity": 0.5,
+  "circle-stroke-width": 0,
+};
+
+// -- Helpers --
 
 type AreaKind = "district" | "region";
+type StyleField = "fill" | "fillOp" | "stroke" | "strokeOp" | "w";
 
-type HoverTarget = {
-  kind: AreaKind;
-  id: number | string;
-} | null;
-
-type AreaLayerEntry = {
-  kind: AreaKind;
-  id: number | string;
-  layer: Path;
-};
-
-function areaKey(kind: AreaKind, id: number | string) {
-  return `${kind}:${id}`;
-}
-
-function normalizedAreaId(kind: AreaKind, id: number | string) {
-  return kind === "district" ? String(id) : id;
-}
-
-// -- Polygon styling --
-
-function getPolygonStyle({
-  isSelected,
-  isPartiallySelected,
-  isHovered,
-}: {
-  isSelected: boolean;
-  isPartiallySelected: boolean;
-  isHovered: boolean;
-}): PathOptions {
-  if (isHovered) {
-    return {
-      color: "#1d4ed8",
-      fillColor: "#60a5fa",
-      fillOpacity: 0.34,
-      opacity: 0.95,
-      weight: 3,
-    };
+/** Build a MapLibre "case" expression that assigns style values per feature,
+ *  checking hovered → selected → partially-selected → default.
+ *  Returns a literal value when there are no conditions to branch on. */
+function caseExpr(
+  idProp: string,
+  hoveredId: string | number | null,
+  selectedIds: Set<string | number>,
+  partialIds: Set<string | number>,
+  field: StyleField,
+): ExpressionSpecification {
+  const expr: unknown[] = ["case"];
+  if (hoveredId != null) {
+    expr.push(["==", ["get", idProp], hoveredId], S_HOVERED[field]);
   }
-  if (isSelected) {
-    return {
-      color: "#2563eb",
-      fillColor: "#60a5fa",
-      fillOpacity: 0.24,
-      opacity: 0.9,
-      weight: 2,
-    };
+  if (selectedIds.size > 0) {
+    expr.push(["in", ["get", idProp], ["literal", [...selectedIds]]], S_SELECTED[field]);
   }
-  if (isPartiallySelected) {
-    return {
-      color: "#3b82f6",
-      fillColor: "#93c5fd",
-      fillOpacity: 0.16,
-      opacity: 0.8,
-      weight: 2,
-    };
+  if (partialIds.size > 0) {
+    expr.push(["in", ["get", idProp], ["literal", [...partialIds]]], S_PARTIAL[field]);
   }
-  return {
-    color: "#5b6b80",
-    fillColor: "#bfdbfe",
-    fillOpacity: 0.06,
-    opacity: 0.65,
-    weight: 1,
-  };
+  // "case" requires at least one condition-result pair; return literal when none exist
+  if (expr.length === 1) return S_DEFAULT[field] as unknown as ExpressionSpecification;
+  expr.push(S_DEFAULT[field]);
+  return expr as ExpressionSpecification;
 }
 
-// -- Zoom-responsive layer visibility --
+// -- Tooltip content --
 
-/** Watches zoom level and toggles visibility of the two layers. */
-function ZoomWatcher({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
-  const map = useMap();
-  useEffect(() => {
-    const handler = () => onZoomChange(map.getZoom());
-    map.on("zoomend", handler);
-    onZoomChange(map.getZoom());
-    return () => {
-      map.off("zoomend", handler);
-    };
-  }, [map, onZoomChange]);
-  return null;
-}
-
-// -- Listing dot tooltip --
-
-/** Compact tooltip shown when hovering a listing dot on the map. */
 function ListingDotTooltip({
   name,
   rent,
@@ -176,6 +149,25 @@ function ListingDotTooltip({
     </div>
   );
 }
+
+function formatRentLabel(rent: number) {
+  return `${rent.toLocaleString("sv-SE")} kr`;
+}
+
+function toTooltipInfo(listing: Listing) {
+  return listing.coords
+    ? {
+        lng: listing.coords.long,
+        lat: listing.coords.lat,
+        name: listing.name,
+        rent: listing.rent,
+        areaSqm: listing.areaSqm,
+        numRooms: listing.numRooms,
+      }
+    : null;
+}
+
+// -- Props --
 
 type AreaMapProps = {
   regions: RegionCollection;
@@ -207,298 +199,345 @@ export function AreaMap({
   onToggleRegion,
 }: AreaMapProps) {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [mapHover, setMapHover] = useState<{ kind: AreaKind; id: string | number } | null>(null);
+  const [tooltipInfo, setTooltipInfo] = useState<{
+    lng: number;
+    lat: number;
+    name: string;
+    rent: number;
+    areaSqm: number;
+    numRooms: number;
+  } | null>(null);
+  const mapRef = useRef<MapRef>(null);
+
   const showDistricts = zoom > LAYER_SWITCH_ZOOM;
-  const dotsPaneName = showDistricts ? "listing-dots-above" : "listing-dots-below";
-  const dotsPaneZIndex = showDistricts ? DOTS_ABOVE_POLYGONS_Z_INDEX : DOTS_BELOW_POLYGONS_Z_INDEX;
+  const showRentLabels = zoom >= SHOW_RENT_LABEL_ZOOM;
 
-  // Refs for values accessed inside stable event handlers (avoids stale closures).
-  // GeoJSON key is stable, so onEachFeature only runs once per mount — handlers
-  // must read current state from refs rather than captured closure variables.
-  const onToggleDistrictRef = useRef(onToggleDistrict);
-  onToggleDistrictRef.current = onToggleDistrict;
-  const onToggleRegionRef = useRef(onToggleRegion);
-  onToggleRegionRef.current = onToggleRegion;
-  const selectedDistrictIdsRef = useRef(new Set(selectedDistrictIds.map(String)));
-  const selectedRegionIdsRef = useRef(new Set(selectedRegionIds));
-  const partiallySelectedRegionIdsRef = useRef(new Set(partiallySelectedRegionIds));
-  const sidebarHoveredRef = useRef<HoverTarget>(
-    hoveredDistrictId != null
-      ? { kind: "district", id: hoveredDistrictId }
-      : hoveredRegionId != null
-        ? { kind: "region", id: hoveredRegionId }
-        : null,
-  );
-  const mapHoveredRef = useRef<HoverTarget>(null);
-  const areaLayersRef = useRef(new Map<string, AreaLayerEntry>());
+  // Sidebar hover takes priority over map hover
+  const effectiveHoveredDistrictId =
+    hoveredDistrictId ?? (mapHover?.kind === "district" ? (mapHover.id as number) : null);
+  const effectiveHoveredRegionId =
+    hoveredRegionId ?? (mapHover?.kind === "region" ? (mapHover.id as string) : null);
 
-  const getHoveredTarget = useCallback(
-    () => sidebarHoveredRef.current ?? mapHoveredRef.current,
-    [],
+  // -- Selection sets --
+
+  const selectedDistrictSet = useMemo(() => new Set(selectedDistrictIds), [selectedDistrictIds]);
+  const selectedRegionSet = useMemo(() => new Set(selectedRegionIds), [selectedRegionIds]);
+  const partialRegionSet = useMemo(
+    () => new Set(partiallySelectedRegionIds),
+    [partiallySelectedRegionIds],
   );
 
-  const refreshAreaLayer = useCallback(
-    (kind: AreaKind, id: number | string) => {
-      const entry = areaLayersRef.current.get(areaKey(kind, id));
-      if (!entry) return;
+  // -- Paint expressions (recompute when selection/hover state changes) --
 
-      const hoveredTarget = getHoveredTarget();
-      const isHovered =
-        hoveredTarget?.kind === kind &&
-        normalizedAreaId(kind, hoveredTarget.id) === normalizedAreaId(kind, id);
-      const isSelected =
-        kind === "district"
-          ? selectedDistrictIdsRef.current.has(String(id))
-          : selectedRegionIdsRef.current.has(id as string);
-      const isPartiallySelected =
-        kind === "region" && partiallySelectedRegionIdsRef.current.has(id as string);
-
-      entry.layer.setStyle(
-        getPolygonStyle({
-          isSelected,
-          isPartiallySelected,
-          isHovered,
-        }),
-      );
-
-      if (isHovered) {
-        entry.layer.bringToFront();
-      }
-    },
-    [getHoveredTarget],
+  const districtFillPaint = useMemo(
+    (): FillLayerSpecification["paint"] => ({
+      "fill-color": caseExpr("stadsdel_id", effectiveHoveredDistrictId, selectedDistrictSet, new Set(), "fill"),
+      "fill-opacity": caseExpr("stadsdel_id", effectiveHoveredDistrictId, selectedDistrictSet, new Set(), "fillOp"),
+    }),
+    [effectiveHoveredDistrictId, selectedDistrictSet],
   );
 
-  const updateMapHover = useCallback(
-    (nextHover: HoverTarget) => {
-      const previousHover = getHoveredTarget();
-      mapHoveredRef.current = nextHover;
-      const resolvedHover = getHoveredTarget();
-
-      if (previousHover) refreshAreaLayer(previousHover.kind, previousHover.id);
-      if (
-        resolvedHover &&
-        (!previousHover ||
-          previousHover.kind !== resolvedHover.kind ||
-          previousHover.id !== resolvedHover.id)
-      ) {
-        refreshAreaLayer(resolvedHover.kind, resolvedHover.id);
-      }
-    },
-    [getHoveredTarget, refreshAreaLayer],
+  const districtLinePaint = useMemo(
+    (): LineLayerSpecification["paint"] => ({
+      "line-color": caseExpr("stadsdel_id", effectiveHoveredDistrictId, selectedDistrictSet, new Set(), "stroke"),
+      "line-opacity": caseExpr("stadsdel_id", effectiveHoveredDistrictId, selectedDistrictSet, new Set(), "strokeOp"),
+      "line-width": caseExpr("stadsdel_id", effectiveHoveredDistrictId, selectedDistrictSet, new Set(), "w"),
+    }),
+    [effectiveHoveredDistrictId, selectedDistrictSet],
   );
 
-  const registerAreaLayer = useCallback(
-    ({ kind, id, layer }: AreaLayerEntry) => {
-      areaLayersRef.current.set(areaKey(kind, id), { kind, id, layer });
-      refreshAreaLayer(kind, id);
-    },
-    [refreshAreaLayer],
+  const regionFillPaint = useMemo(
+    (): FillLayerSpecification["paint"] => ({
+      "fill-color": caseExpr("municipality_id", effectiveHoveredRegionId, selectedRegionSet, partialRegionSet, "fill"),
+      "fill-opacity": caseExpr("municipality_id", effectiveHoveredRegionId, selectedRegionSet, partialRegionSet, "fillOp"),
+    }),
+    [effectiveHoveredRegionId, selectedRegionSet, partialRegionSet],
   );
 
-  // -- District layer setup (stable — only runs on GeoJSON mount) --
-
-  const onEachDistrict = useCallback(
-    (feature: Feature<Polygon | MultiPolygon, DistrictProperties>, layer: Layer) => {
-      const id = feature.properties.stadsdel_id;
-      const pathLayer = layer as Path;
-      registerAreaLayer({ kind: "district", id, layer: pathLayer });
-      pathLayer.on({
-        click: () => onToggleDistrictRef.current(id),
-        mouseover: () => updateMapHover({ kind: "district", id }),
-        mouseout: () => updateMapHover(null),
-      });
-    },
-    [registerAreaLayer, updateMapHover],
+  const regionLinePaint = useMemo(
+    (): LineLayerSpecification["paint"] => ({
+      "line-color": caseExpr("municipality_id", effectiveHoveredRegionId, selectedRegionSet, partialRegionSet, "stroke"),
+      "line-opacity": caseExpr("municipality_id", effectiveHoveredRegionId, selectedRegionSet, partialRegionSet, "strokeOp"),
+      "line-width": caseExpr("municipality_id", effectiveHoveredRegionId, selectedRegionSet, partialRegionSet, "w"),
+    }),
+    [effectiveHoveredRegionId, selectedRegionSet, partialRegionSet],
   );
 
-  // -- Region layer setup (stable — only runs on GeoJSON mount) --
+  // -- Listing dot GeoJSON sources --
 
-  const onEachRegion = useCallback(
-    (feature: Feature<Polygon | MultiPolygon, RegionProperties>, layer: Layer) => {
-      const mId = feature.properties.municipality_id;
-      const pathLayer = layer as Path;
-      registerAreaLayer({ kind: "region", id: mId, layer: pathLayer });
-      pathLayer.on({
-        click: () => onToggleRegionRef.current(mId),
-        mouseover: () => updateMapHover({ kind: "region", id: mId }),
-        mouseout: () => updateMapHover(null),
-      });
-    },
-    [registerAreaLayer, updateMapHover],
+  const activeDotSource = useMemo(
+    (): FeatureCollection<Point> => ({
+      type: "FeatureCollection",
+      features: listings
+        .filter((l) => l.coords && includedListingIds.has(l.id))
+        .map(
+          (l): Feature<Point> => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [l.coords!.long, l.coords!.lat] },
+            properties: { id: l.id, name: l.name, rent: l.rent, areaSqm: l.areaSqm, numRooms: l.numRooms },
+          }),
+        ),
+    }),
+    [listings, includedListingIds],
   );
 
-  useEffect(() => {
-    mapHoveredRef.current = null;
-  }, [showDistricts]);
+  const filteredDotSource = useMemo(
+    (): FeatureCollection<Point> => ({
+      type: "FeatureCollection",
+      features: listings
+        .filter((l) => l.coords && !includedListingIds.has(l.id))
+        .map(
+          (l): Feature<Point> => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [l.coords!.long, l.coords!.lat] },
+            properties: { id: l.id, name: l.name, rent: l.rent, areaSqm: l.areaSqm, numRooms: l.numRooms },
+          }),
+        ),
+    }),
+    [listings, includedListingIds],
+  );
 
-  useEffect(() => {
-    const previous = selectedDistrictIdsRef.current;
-    const next = new Set(selectedDistrictIds.map(String));
-    selectedDistrictIdsRef.current = next;
-    for (const districtId of new Set([...previous, ...next])) {
-      if (previous.has(districtId) !== next.has(districtId)) {
-        refreshAreaLayer("district", districtId);
-      }
-    }
-  }, [refreshAreaLayer, selectedDistrictIds]);
-
-  useEffect(() => {
-    const previousSelected = selectedRegionIdsRef.current;
-    const previousPartial = partiallySelectedRegionIdsRef.current;
-    const nextSelected = new Set(selectedRegionIds);
-    const nextPartial = new Set(partiallySelectedRegionIds);
-    selectedRegionIdsRef.current = nextSelected;
-    partiallySelectedRegionIdsRef.current = nextPartial;
-    for (const regionId of new Set([
-      ...previousSelected,
-      ...previousPartial,
-      ...nextSelected,
-      ...nextPartial,
-    ])) {
-      const selectionChanged =
-        previousSelected.has(regionId) !== nextSelected.has(regionId) ||
-        previousPartial.has(regionId) !== nextPartial.has(regionId);
-      if (selectionChanged) refreshAreaLayer("region", regionId);
-    }
-  }, [partiallySelectedRegionIds, refreshAreaLayer, selectedRegionIds]);
-
-  useEffect(() => {
-    const previousHover = getHoveredTarget();
-    sidebarHoveredRef.current =
-      hoveredDistrictId != null
-        ? { kind: "district", id: hoveredDistrictId }
-        : hoveredRegionId != null
-          ? { kind: "region", id: hoveredRegionId }
-          : null;
-    const nextHover = getHoveredTarget();
-
-    if (previousHover) refreshAreaLayer(previousHover.kind, previousHover.id);
-    if (
-      nextHover &&
-      (!previousHover ||
-        previousHover.kind !== nextHover.kind ||
-        previousHover.id !== nextHover.id)
-    ) {
-      refreshAreaLayer(nextHover.kind, nextHover.id);
-    }
-  }, [getHoveredTarget, hoveredDistrictId, hoveredRegionId, refreshAreaLayer]);
-
-  // -- Listing dot data --
-
-  const listingDots = useMemo(
+  const activeRentLabelListings = useMemo(
     () =>
-      listings
-        .filter((l) => l.coords)
-        .map((l) => ({
-          id: l.id,
-          lat: l.coords!.lat,
-          lng: l.coords!.long,
-          isIncluded: includedListingIds.has(l.id),
-          name: l.name,
-          rent: l.rent,
-          areaSqm: l.areaSqm,
-          numRooms: l.numRooms,
-        })),
-    [includedListingIds, listings],
+      showRentLabels
+        ? listings.filter((listing) => listing.coords && includedListingIds.has(listing.id))
+        : [],
+    [includedListingIds, listings, showRentLabels],
   );
 
-  const filteredOutDots = useMemo(
-    () => listingDots.filter((dot) => !dot.isIncluded),
-    [listingDots],
+  const showTooltipForListing = useCallback((listing: Listing) => {
+    setTooltipInfo(toTooltipInfo(listing));
+  }, []);
+
+  const clearListingTooltip = useCallback(() => {
+    setTooltipInfo(null);
+  }, []);
+
+  // -- Event handlers --
+
+  const onMapClick = useCallback(
+    (e: MapLayerMouseEvent) => {
+      const feature = e.features?.[0];
+      if (!feature) return;
+      if (feature.layer.id === DISTRICT_FILL) {
+        const id = feature.properties?.stadsdel_id as number;
+        if (id != null) onToggleDistrict(id);
+      } else if (feature.layer.id === REGION_FILL) {
+        const mId = feature.properties?.municipality_id as string;
+        if (mId != null) onToggleRegion(mId);
+      }
+    },
+    [onToggleDistrict, onToggleRegion],
   );
 
-  const includedDots = useMemo(() => listingDots.filter((dot) => dot.isIncluded), [listingDots]);
+  const onMapMouseMove = useCallback(
+    (e: MapLayerMouseEvent) => {
+      const map = mapRef.current?.getMap();
+      if (!map) return;
+
+      // Check polygon layers (supplied via interactiveLayerIds → e.features)
+      const feature = e.features?.[0];
+      if (feature) {
+        map.getCanvas().style.cursor = "pointer";
+        if (feature.layer.id === DISTRICT_FILL) {
+          const id = feature.properties?.stadsdel_id as number;
+          if (id != null) setMapHover({ kind: "district", id });
+        } else if (feature.layer.id === REGION_FILL) {
+          const mId = feature.properties?.municipality_id as string;
+          if (mId != null) setMapHover({ kind: "region", id: mId });
+        }
+      } else {
+        map.getCanvas().style.cursor = "";
+        setMapHover(null);
+      }
+
+      // Dot tooltip hover (manual queryRenderedFeatures for dot layers)
+      if (zoom <= SHOW_TOOLTIP_ZOOM) {
+        setTooltipInfo(null);
+        return;
+      }
+      const dotLayers = showRentLabels ? [DOTS_FILTERED] : [DOTS_ACTIVE, DOTS_FILTERED];
+      const dotFeatures = map.queryRenderedFeatures(e.point, {
+        layers: dotLayers,
+      });
+      if (dotFeatures.length > 0) {
+        const df = dotFeatures[0];
+        if (df.geometry.type === "Point") {
+          const [lng, lat] = df.geometry.coordinates;
+          map.getCanvas().style.cursor = "pointer";
+          setTooltipInfo({
+            lng,
+            lat,
+            name: df.properties.name,
+            rent: df.properties.rent,
+            areaSqm: df.properties.areaSqm,
+            numRooms: df.properties.numRooms,
+          });
+          return;
+        }
+      }
+      setTooltipInfo(null);
+    },
+    [showRentLabels, zoom],
+  );
+
+  const onMapMouseLeave = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (map) map.getCanvas().style.cursor = "";
+    setMapHover(null);
+    setTooltipInfo(null);
+  }, []);
+
+  const onZoomEnd = useCallback((e: { viewState: { zoom: number } }) => {
+    setZoom(e.viewState.zoom);
+  }, []);
+
+  /** Hide basemap place-name layers on initial load so our own labels take over. */
+  const onMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    for (const layer of map.getStyle().layers) {
+      if (HIDDEN_LABEL_PREFIXES.some((p) => layer.id.startsWith(p))) {
+        map.setLayoutProperty(layer.id, "visibility", "none");
+      }
+    }
+  }, []);
+
+  // Clear map hover when layer visibility switches
+  const prevShowDistrictsRef = useRef(showDistricts);
+  if (prevShowDistrictsRef.current !== showDistricts) {
+    prevShowDistrictsRef.current = showDistricts;
+    if (mapHover) setMapHover(null);
+  }
 
   return (
-    <MapContainer
-      center={STOCKHOLM_CENTER}
-      zoom={DEFAULT_ZOOM}
-      className="h-full w-full"
-      attributionControl={false}
-      maxBounds={MAP_BOUNDS}
-      maxBoundsViscosity={1}
+    <Map
+      ref={mapRef}
+      initialViewState={{ ...STOCKHOLM_CENTER, zoom: DEFAULT_ZOOM }}
       minZoom={MIN_ZOOM}
-      zoomControl={true}
-      scrollWheelZoom={true}
-      zoomSnap={0.5}
-      wheelPxPerZoomLevel={60}
+      maxBounds={MAX_BOUNDS}
+      mapStyle={BASEMAP_STYLE}
+      style={{ width: "100%", height: "100%" }}
+      interactiveLayerIds={INTERACTIVE_LAYERS}
+      onClick={onMapClick}
+      onMouseMove={onMapMouseMove}
+      onMouseLeave={onMapMouseLeave}
+      onZoomEnd={onZoomEnd}
+      onLoad={onMapLoad}
+      attributionControl={false}
     >
-      <Pane name="area-polygons" style={{ zIndex: POLYGON_PANE_Z_INDEX }} />
-      <Pane name="region-outlines" style={{ zIndex: REGION_OUTLINE_PANE_Z_INDEX }} />
-
-      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-      <ZoomWatcher onZoomChange={setZoom} />
-
-      {/* District polygons (visible when zoomed in) */}
-      {showDistricts && (
-        <GeoJSON
-          key="districts"
-          data={districts}
-          pane="area-polygons"
-          onEachFeature={onEachDistrict as any}
+      {/* -- District polygons + labels (visible when zoomed in) -- */}
+      <Source id="districts" type="geojson" data={districts}>
+        <Layer
+          id={DISTRICT_FILL}
+          type="fill"
+          paint={districtFillPaint}
+          layout={{ visibility: showDistricts ? "visible" : "none" }}
         />
-      )}
-
-      {/* Region boundaries stay visible above districts when zoomed in. */}
-      {showDistricts && (
-        <GeoJSON
-          key="region-outlines"
-          data={regions}
-          pane="region-outlines"
-          style={() => REGION_OUTLINE_STYLE}
+        <Layer
+          id={DISTRICT_LINE}
+          type="line"
+          paint={districtLinePaint}
+          layout={{ visibility: showDistricts ? "visible" : "none" }}
         />
-      )}
-
-      {/* Region polygons (visible when zoomed out) */}
-      {!showDistricts && (
-        <GeoJSON
-          key="regions"
-          data={regions}
-          pane="area-polygons"
-          onEachFeature={onEachRegion as any}
+        <Layer
+          id={DISTRICT_LABEL}
+          type="symbol"
+          layout={{ ...AREA_LABEL_LAYOUT, visibility: showDistricts ? "visible" : "none" }}
+          paint={AREA_LABEL_PAINT}
         />
-      )}
+      </Source>
 
-      {/* Listing dots sit above polygons when zoomed in and below them when zoomed out. */}
-      <Pane key={dotsPaneName} name={dotsPaneName} style={{ zIndex: dotsPaneZIndex }}>
-        {filteredOutDots.map((dot) => (
-          <CircleMarker
-            key={dot.id}
-            center={[dot.lat, dot.lng]}
-            radius={FILTERED_OUT_DOT_STYLE.radius}
-            pathOptions={FILTERED_OUT_DOT_STYLE}
+      {/* Region boundary outlines (visible above districts when zoomed in) */}
+      <Source id="region-outlines" type="geojson" data={regions}>
+        <Layer
+          id={REGION_OUTLINE}
+          type="line"
+          paint={{ "line-color": "#4f5f72", "line-opacity": 0.95, "line-width": 2.25 }}
+          layout={{ visibility: showDistricts ? "visible" : "none" }}
+        />
+      </Source>
+
+      {/* -- Region polygons + labels (visible when zoomed out) -- */}
+      <Source id="regions" type="geojson" data={regions}>
+        <Layer
+          id={REGION_FILL}
+          type="fill"
+          paint={regionFillPaint}
+          layout={{ visibility: showDistricts ? "none" : "visible" }}
+        />
+        <Layer
+          id={REGION_LINE}
+          type="line"
+          paint={regionLinePaint}
+          layout={{ visibility: showDistricts ? "none" : "visible" }}
+        />
+        <Layer
+          id={REGION_LABEL}
+          type="symbol"
+          layout={{ ...AREA_LABEL_LAYOUT, visibility: showDistricts ? "none" : "visible" }}
+          paint={AREA_LABEL_PAINT}
+        />
+      </Source>
+
+      {/* -- Listing dots -- */}
+      <Source id="dots-filtered" type="geojson" data={filteredDotSource}>
+        <Layer id={DOTS_FILTERED} type="circle" paint={FILTERED_DOT} />
+      </Source>
+      <Source id="dots-active" type="geojson" data={activeDotSource}>
+        <Layer
+          id={DOTS_ACTIVE}
+          type="circle"
+          paint={ACTIVE_DOT}
+          layout={{ visibility: showRentLabels ? "none" : "visible" }}
+        />
+      </Source>
+
+      {/* High-zoom active listing markers rendered as clickable rent tags. */}
+      {showRentLabels &&
+        activeRentLabelListings.map((listing) => (
+          <Marker
+            key={listing.id}
+            longitude={listing.coords!.long}
+            latitude={listing.coords!.lat}
+            anchor="bottom"
           >
-            {zoom > SHOW_TOOLTIP_ZOOM && (
-              <Tooltip direction="top" offset={[0, -4]} className="listing-tooltip">
-                <ListingDotTooltip
-                  name={dot.name}
-                  rent={dot.rent}
-                  areaSqm={dot.areaSqm}
-                  numRooms={dot.numRooms}
-                />
-              </Tooltip>
-            )}
-          </CircleMarker>
+            <a
+              href={listing.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={listing.name}
+              onMouseEnter={() => showTooltipForListing(listing)}
+              onMouseLeave={clearListingTooltip}
+              onFocus={() => showTooltipForListing(listing)}
+              onBlur={clearListingTooltip}
+              className="block rounded-md border border-stone-700/70 bg-white/95 px-1.5 py-0.5 text-[11px] font-medium leading-none text-stone-800 shadow-sm transition-transform hover:-translate-y-px hover:bg-white"
+            >
+              {formatRentLabel(listing.rent)}
+            </a>
+          </Marker>
         ))}
-        {includedDots.map((dot) => (
-          <CircleMarker
-            key={dot.id}
-            center={[dot.lat, dot.lng]}
-            radius={ACTIVE_DOT_STYLE.radius}
-            pathOptions={ACTIVE_DOT_STYLE}
-          >
-            {zoom > SHOW_TOOLTIP_ZOOM && (
-              <Tooltip direction="top" offset={[0, -4]} className="listing-tooltip">
-                <ListingDotTooltip
-                  name={dot.name}
-                  rent={dot.rent}
-                  areaSqm={dot.areaSqm}
-                  numRooms={dot.numRooms}
-                />
-              </Tooltip>
-            )}
-          </CircleMarker>
-        ))}
-      </Pane>
-    </MapContainer>
+
+      {/* Dot tooltip popup */}
+      {tooltipInfo && zoom > SHOW_TOOLTIP_ZOOM && (
+        <Popup
+          longitude={tooltipInfo.lng}
+          latitude={tooltipInfo.lat}
+          closeButton={false}
+          closeOnClick={false}
+          anchor="bottom"
+          offset={showRentLabels ? RENT_LABEL_TOOLTIP_OFFSET : 6}
+          className="listing-popup"
+        >
+          <ListingDotTooltip
+            name={tooltipInfo.name}
+            rent={tooltipInfo.rent}
+            areaSqm={tooltipInfo.areaSqm}
+            numRooms={tooltipInfo.numRooms}
+          />
+        </Popup>
+      )}
+    </Map>
   );
 }

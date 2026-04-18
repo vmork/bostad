@@ -63,7 +63,7 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     group: "location",
     showInSort: false,
     showInFilter: false,
-    defaultState: { allowNull: true },
+    defaultState: { allowNull: false },
   },
 
   // --- Basic info

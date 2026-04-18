@@ -63,7 +63,7 @@ export function MapFilterModal({
 
   const selectedDistricts = useMemo(() => districtFilter?.state.included ?? [], [districtFilter]);
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
-  const allowNull = districtFilter?.state.allowNull ?? true;
+  const allowNull = districtFilter?.state.allowNull ?? false;
 
   // Keep all dots on the map, but visually mute listings excluded by the current filter set.
   const includedListingIds = useMemo(
@@ -181,11 +181,15 @@ export function MapFilterModal({
 
   if (!open) return null;
 
-  // Header stats: total districts, regions with selected children, selected count
+  // Header stats
   const totalDistricts = geoData
     ? Object.values(geoData.hierarchy).reduce((sum, ids) => sum + ids.length, 0)
     : 0;
-  const totalRegions = geoData ? Object.keys(geoData.hierarchy).length : 0;
+  // Count listings matched by the district filter alone (ignoring other filters)
+  const selectedSet_ = new Set(selectedDistricts);
+  const includedListings = listings.filter(l => {
+    return (l.districtId == null) ? allowNull : selectedSet_.has(l.districtId)
+  })
 
   return (
     <Modal
@@ -198,8 +202,8 @@ export function MapFilterModal({
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-dark">Map filter</span>
           <span className="text-xs text-gs-3">
-            {totalDistricts} districts &middot; {totalRegions} regions
-            {selectedDistricts.length > 0 && <> &middot; {selectedDistricts.length} selected</>}
+            {includedListings.length}/{listings.length} listings{" · "}
+            {selectedDistricts.length}/{totalDistricts} districts
           </span>
         </div>
         <Button size="default" onClick={onClose}>

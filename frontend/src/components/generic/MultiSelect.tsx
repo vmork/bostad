@@ -22,8 +22,6 @@ export function MultiSelect<T>({
     }
   };
 
-  const allSelected = included != null && included.length === allItems.length;
-
   return (
     <div className="flex flex-col gap-1.5">
       {/* Header: select all / clear */}
