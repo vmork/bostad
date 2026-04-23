@@ -6,60 +6,43 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
+from app.geo import lookup_district
 from app.models import (
     AllListingsResponse,
     Listing,
     ListingParseError,
+    ListingSourceStats,
     ListingsSearchOptions,
     ListingsStreamEvent,
     ScrapeEventStatus,
     ScrapeProgress,
 )
-from app.geo import lookup_district
 from app.scraping.client import create_async_client
 from app.scraping.types import ListingSource, ProgressCallback
 
-MAX_CONCURRENT_DETAIL_FETCHES = 12
 logger = logging.getLogger(__name__)
 
 logger.setLevel(logging.DEBUG)
 
 
-# Browser-like defaults used by both index and detail requests.
-DEFAULT_BOSTAD_HEADERS = {
-    "Accept": "*/*",
-    "Accept-Language": "sv-SE,sv;q=0.9,en-SG;q=0.8,en;q=0.7,en-US;q=0.6",
-    "Connection": "keep-alive",
-    "DNT": "1",
-    "Referer": "https://bostad.stockholm.se/bostad",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"macOS"',
-}
+def _merge_source_stats(stats: list[ListingSourceStats]) -> list[ListingSourceStats]:
+    """Preserve source order while replacing older stats with newer snapshots."""
+
+    stats_by_source = {stat.source: stat for stat in stats}
+    return list(stats_by_source.values())
 
 
-def _parse_cookie_header(cookie_header: str) -> dict[str, str]:
-    """Parse a raw Cookie header string into key/value pairs.
-
-    This allows us to seed httpx's cookie jar so authenticated state survives
-    redirects and subsequent detail-page requests.
-    """
-
-    cookies: dict[str, str] = {}
-    for part in cookie_header.split(";"):
-        segment = part.strip()
-        if not segment or "=" not in segment:
-            continue
-        key, value = segment.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if key:
-            cookies[key] = value
-    return cookies
+def _merge_responses(responses: list[AllListingsResponse]) -> AllListingsResponse:
+    listings = [listing for response in responses for listing in response.listings]
+    errors = [error for response in responses for error in response.errors]
+    source_stats = _merge_source_stats([
+        stat for response in responses for stat in response.source_stats
+    ])
+    return AllListingsResponse(
+        listings=listings,
+        errors=errors,
+        source_stats=source_stats,
+    )
 
 
 async def _emit_progress(
@@ -88,7 +71,6 @@ async def _parse_listing_task(
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
 ) -> tuple[int, Listing | None, ListingParseError | None]:
-    listing_id = source.get_listing_id(item)
 
     try:
         async with semaphore:
@@ -98,14 +80,21 @@ async def _parse_listing_task(
             listing.district_id = lookup_district(listing.coords.lat, listing.coords.long)
         return index, listing, None
     except (ValidationError, Exception) as error:  # noqa: BLE001
+        source_local_id = source.get_listing_id(item)
         logger.warning(
-            f"[{source.source_id}] Failed to parse listing {listing_id}: "
+            f"[{source.source_id}] Failed to parse listing {source_local_id}: "
             f"{error.__class__.__name__}: {error}"
         )
         return (
             index,
             None,
-            ListingParseError(id=listing_id, reason=str(error), url=source.get_listing_url(item)),
+            ListingParseError(
+                id=f"{source.source_id}:{source_local_id}",
+                source=source.source_id,
+                source_local_id=source_local_id,
+                reason=str(error),
+                url=source.get_listing_url(item),
+            ),
         )
 
 
@@ -116,37 +105,20 @@ async def scrape_source_listings(
 ) -> AllListingsResponse:
     """Generic orchestration for scraping one source with bounded concurrency."""
     async with create_async_client() as client:
-        client.headers.update(DEFAULT_BOSTAD_HEADERS)
-
-        cookie_preview = f"{options.cookie[:24]}..." if options.cookie else None
-        logger.info(
-            f"[{source.source_id}] Starting scrape with options: "
-            f"max_listings={options.max_listings}, cookie={cookie_preview}[...] (len={len(options.cookie) if options.cookie else 0}), "
-        )
-
-        if options.cookie:
-            client.headers["Cookie"] = options.cookie
-
-        else:
-            logger.info(f"[{source.source_id}] No cookie provided; fetching index anonymously")
+        source.configure_client(client, options)
 
         started_at = time.time()
         data = await source.fetch_listing_index(client, options)
 
-        logged_in: bool | None = None
-        if data:
-            first_index_item = data[0]
-            if isinstance(first_index_item, dict):
-                raw_logged_in = first_index_item.get("ArInloggad")
-                if isinstance(raw_logged_in, bool):
-                    logged_in = raw_logged_in
+        logged_in = source.infer_logged_in(data)
         logger.info(f"[{source.source_id}] User login status inferred as: {logged_in}")
 
         total_index_items = len(data)
-        limit = options.max_listings
-        if limit is not None:
-            data = data[:limit]
+        data = source.limit_index_items(data, options)
         total = len(data)
+        source_stats = [
+            source.build_source_stats(logged_in=logged_in, num_listings=0, num_errors=0)
+        ]
 
         await _emit_progress(
             source,
@@ -156,11 +128,11 @@ async def scrape_source_listings(
                 status="started",
                 current=0,
                 total=total,
-                logged_in=logged_in,
+                source_stats=source_stats,
             ),
         )
 
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT_DETAIL_FETCHES)
+        semaphore = asyncio.Semaphore(source.detail_fetch_concurrency)
         tasks = [
             asyncio.create_task(_parse_listing_task(source, index, item, client, semaphore))
             for index, item in enumerate(data)
@@ -180,10 +152,23 @@ async def scrape_source_listings(
                 listing_id = listing.id
             else:
                 if error is None:
-                    error = ListingParseError(id="unknown", reason="Unknown parsing failure")
+                    error = ListingParseError(
+                        id=f"{source.source_id}:unknown",
+                        source=source.source_id,
+                        source_local_id="unknown",
+                        reason="Unknown parsing failure",
+                    )
                 indexed_errors.append((index, error))
                 errors_count += 1
                 listing_id = error.id
+
+            source_stats = [
+                source.build_source_stats(
+                    logged_in=logged_in,
+                    num_listings=len(indexed_listings),
+                    num_errors=errors_count,
+                )
+            ]
 
             await _emit_progress(
                 source,
@@ -194,23 +179,30 @@ async def scrape_source_listings(
                     current=completed,
                     total=total,
                     errors=errors_count,
-                    logged_in=logged_in,
                     listing_id=listing_id,
+                    source_stats=source_stats,
                 ),
             )
 
         listings = [listing for _, listing in sorted(indexed_listings, key=lambda item: item[0])]
         errors = [error for _, error in sorted(indexed_errors, key=lambda item: item[0])]
+        source_stats = [
+            source.build_source_stats(
+                logged_in=logged_in,
+                num_listings=len(listings),
+                num_errors=len(errors),
+            )
+        ]
         result = AllListingsResponse(
             listings=listings,
             errors=errors,
-            logged_in=logged_in,
+            source_stats=source_stats,
         )
 
         logger.info(
             f"[{source.source_id}] Parsed {len(listings)} listings with {len(errors)} errors "
             f"in {time.time() - started_at:.2f} seconds "
-            f"(index items available: {total_index_items}, limit: {limit})"
+            f"(index items available: {total_index_items}, parsed: {total})"
         )
         await _emit_progress(
             source,
@@ -221,8 +213,106 @@ async def scrape_source_listings(
                 current=total,
                 total=total,
                 errors=len(errors),
-                logged_in=logged_in,
+                source_stats=source_stats,
             ),
             data=result,
         )
         return result
+
+
+async def scrape_listings_with_options(
+    sources: list[ListingSource],
+    options: ListingsSearchOptions,
+    progress_callback: ProgressCallback | None = None,
+) -> AllListingsResponse:
+    """Scrape all requested sources in parallel and emit aggregate progress."""
+
+    progress_by_source: dict[Any, ScrapeProgress] = {}
+
+    async def emit_aggregate_progress(event: ListingsStreamEvent) -> None:
+        if progress_callback is None:
+            return
+
+        progress_by_source[event.progress.source] = event.progress
+        aggregate_stats = _merge_source_stats([
+            stat for progress in progress_by_source.values() for stat in progress.source_stats
+        ])
+        aggregate_progress = ScrapeProgress(
+            status="progress" if event.event == "complete" else event.progress.status,
+            current=sum(progress.current for progress in progress_by_source.values()),
+            total=sum(progress.total for progress in progress_by_source.values()),
+            errors=sum(progress.errors for progress in progress_by_source.values()),
+            listing_id=event.progress.listing_id,
+            source=event.progress.source,
+            source_stats=aggregate_stats,
+            message=event.progress.message,
+        )
+        await progress_callback(
+            ListingsStreamEvent(
+                event="progress" if event.event == "complete" else event.event,
+                progress=aggregate_progress,
+                data=None,
+            )
+        )
+
+    async def scrape_one_source(source: ListingSource) -> AllListingsResponse:
+        try:
+            return await scrape_source_listings(
+                source=source,
+                options=options,
+                progress_callback=emit_aggregate_progress,
+            )
+        except Exception as error:
+            logger.exception("[%s] Source scrape failed", source.source_id)
+            failed_result = AllListingsResponse(
+                listings=[],
+                errors=[
+                    ListingParseError(
+                        id=f"{source.source_id}:source-error",
+                        source=source.source_id,
+                        source_local_id="source-error",
+                        url=source.global_url,
+                        reason=str(error),
+                    )
+                ],
+                source_stats=[
+                    source.build_source_stats(logged_in=None, num_listings=0, num_errors=1)
+                ],
+            )
+            if progress_callback is not None:
+                await emit_aggregate_progress(
+                    ListingsStreamEvent(
+                        event="progress",
+                        progress=ScrapeProgress(
+                            status="progress",
+                            current=0,
+                            total=0,
+                            errors=1,
+                            source=source.source_id,
+                            source_stats=failed_result.source_stats,
+                            message=str(error),
+                        ),
+                    )
+                )
+            return failed_result
+
+    results = await asyncio.gather(*(scrape_one_source(source) for source in sources))
+    merged_result = _merge_responses(results)
+    if progress_callback is not None:
+        aggregate_stats = _merge_source_stats([
+            stat for result in results for stat in result.source_stats
+        ])
+        await progress_callback(
+            ListingsStreamEvent(
+                event="complete",
+                progress=ScrapeProgress(
+                    status="complete",
+                    current=sum(len(result.listings) + len(result.errors) for result in results),
+                    total=sum(len(result.listings) + len(result.errors) for result in results),
+                    errors=sum(len(result.errors) for result in results),
+                    source_stats=aggregate_stats,
+                ),
+                data=merged_result,
+            )
+        )
+    return merged_result

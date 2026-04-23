@@ -1,0 +1,408 @@
+{
+  "results": [
+    {
+      "id": 249000,
+      "references": {
+        "estate": 3185,
+        "apartment": 56801,
+        "object_ad": 249000,
+        "company": 59,
+        "office": 838,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/249000-1rum-bandhagen-stockholms-l\u00e4n-st\u00e5lbogav\u00e4gen-16",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Bandhagen",
+      "location": { "lat": 59.2638178, "lon": 18.0497043 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/estate_images/d12f52ade2d34f089b3e5d8462f6730e.jpeg",
+          "caption": "",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/estate_images/5e99291d18764833a7381131936ddd38.jpeg",
+          "caption": "",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/estate_images/7d09263c1d014e7499059ed326074bd5.jpeg",
+          "caption": "",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/estate_images/529f2c53161c4b2bb66959429afe6177.jpeg",
+          "caption": "",
+          "position": 3
+        }
+      ],
+      "videos": [],
+      "boost_value": 1.39,
+      "discount": null,
+      "title": "St\u00e5lbogav\u00e4gen 16",
+      "audience": "everyone",
+      "is_short_lease": false,
+      "early_access": null,
+      "rent": 5462,
+      "rooms": 1.0,
+      "area": 25.0,
+      "date_access": "2026-07-01",
+      "is_quick_apply": false
+    },
+    {
+      "id": 249612,
+      "references": {
+        "estate": 9160,
+        "apartment": 204315,
+        "object_ad": 249612,
+        "company": 741,
+        "office": 2042,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/249612-1rum-stockholm-stockholms-l\u00e4n-v\u00e4stmannagatan-15",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.3372393, "lon": 18.0517401 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/f495ce36faed43e5a63b4aa783d7145a.png",
+          "caption": "Exempelbild studentrum",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/6c443fda60234fe799749c8c35ae684f.png",
+          "caption": "Exempelbild badrum",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/1c261ceb6fe741acb60b256140d101e6.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/b8ef58e2c25e49e3a698f8d21d6daa59.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 3
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/fb1b5205487b47dbae808d65250e0562.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 4
+        }
+      ],
+      "videos": [],
+      "boost_value": 0,
+      "discount": null,
+      "title": "V\u00e4stmannagatan 15",
+      "audience": "youth",
+      "is_short_lease": true,
+      "early_access": null,
+      "rent": 5511,
+      "rooms": 1.0,
+      "area": 20.0,
+      "date_access": "2026-05-05",
+      "is_quick_apply": false
+    },
+    {
+      "id": 249613,
+      "references": {
+        "estate": 9160,
+        "apartment": 204316,
+        "object_ad": 249613,
+        "company": 741,
+        "office": 2042,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/249613-1rum-stockholm-stockholms-l\u00e4n-v\u00e4stmannagatan-15",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.3372393, "lon": 18.0517401 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/f495ce36faed43e5a63b4aa783d7145a.png",
+          "caption": "Exempelbild studentrum",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/6c443fda60234fe799749c8c35ae684f.png",
+          "caption": "Exempelbild badrum",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/1c261ceb6fe741acb60b256140d101e6.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/b8ef58e2c25e49e3a698f8d21d6daa59.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 3
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/fb1b5205487b47dbae808d65250e0562.png",
+          "caption": "Gemensamt k\u00f6k",
+          "position": 4
+        }
+      ],
+      "videos": [],
+      "boost_value": 0,
+      "discount": null,
+      "title": "V\u00e4stmannagatan 15",
+      "audience": "youth",
+      "is_short_lease": true,
+      "early_access": null,
+      "rent": 5879,
+      "rooms": 1.0,
+      "area": 24.0,
+      "date_access": "2026-05-05",
+      "is_quick_apply": false
+    },
+    {
+      "id": 248769,
+      "references": {
+        "estate": 7341,
+        "apartment": 202158,
+        "object_ad": 248769,
+        "company": 986,
+        "office": 1695,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/248769-1rum-enskede-stockholms-l\u00e4n-majrov\u00e4gen-6",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Enskede",
+      "location": { "lat": 59.2617201, "lon": 18.0821567 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/25f6b9bc36a84c87af5d74911da49bae.jpeg",
+          "caption": "",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/21fa065b808b4d92bbf0184932754504.jpeg",
+          "caption": "",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/976d7c8a73a743ba8bdda79c948201d3.jpeg",
+          "caption": "",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/d348bb2b3310436a8f2d5ebee7b91b99.jpeg",
+          "caption": "",
+          "position": 3
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/d0c9fbdb209b46d4bd7185c286920935.jpeg",
+          "caption": "",
+          "position": 4
+        }
+      ],
+      "videos": [],
+      "boost_value": 10.620000000000001,
+      "discount": null,
+      "title": "Majrov\u00e4gen 6",
+      "audience": "student",
+      "is_short_lease": false,
+      "early_access": null,
+      "rent": 7247,
+      "rooms": 1.0,
+      "area": 20.0,
+      "date_access": "2026-07-01",
+      "is_quick_apply": false
+    },
+    {
+      "id": 227247,
+      "references": {
+        "estate": 17221,
+        "apartment": 273685,
+        "object_ad": 227247,
+        "company": 1847,
+        "office": 2783,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/227247-5rum-stockholm-stockholms-l\u00e4n-heliosgatan-13",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.3021, "lon": 18.0943 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/6c52c6303b6943159c3f7962c9f0cf06.png",
+          "caption": "",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/10e70690da2b4f1faffaa5d49ca4c111.png",
+          "caption": "",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/5957347beada4db7a2263ec229a1e2f6.jpeg",
+          "caption": "",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/1671add11ba849cdb65ef14bd5b9bf26.png",
+          "caption": "",
+          "position": 3
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/fa50911b568544d59acaa7c082760dee.jpeg",
+          "caption": "",
+          "position": 4
+        }
+      ],
+      "videos": [],
+      "boost_value": 0,
+      "discount": null,
+      "title": "Heliosgatan 13",
+      "audience": "student",
+      "is_short_lease": true,
+      "early_access": null,
+      "rent": 9200,
+      "rooms": 5.0,
+      "area": 20.0,
+      "date_access": null,
+      "is_quick_apply": true
+    },
+    {
+      "id": 248925,
+      "references": {
+        "estate": 12012,
+        "apartment": 284309,
+        "object_ad": 248925,
+        "company": 40,
+        "office": 1855,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/248925-4rum-stockholm-stockholms-l\u00e4n-orrestaslingan-22",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.2696542, "lon": 18.0540843 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/f48f79a91c134a8fa9f86e1efbf7d4fc.jpeg",
+          "caption": "",
+          "position": 0
+        }
+      ],
+      "videos": [],
+      "boost_value": 9.76,
+      "discount": null,
+      "title": "Orrestaslingan 22",
+      "audience": "everyone",
+      "is_short_lease": false,
+      "early_access": null,
+      "rent": 20212,
+      "rooms": 4.0,
+      "area": 81.5,
+      "date_access": "2026-07-01",
+      "is_quick_apply": false
+    },
+    {
+      "id": 250343,
+      "references": {
+        "estate": 12012,
+        "apartment": 282949,
+        "object_ad": 250343,
+        "company": 40,
+        "office": 1855,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/250343-4rum-stockholm-stockholms-l\u00e4n-orrestaslingan-24",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.2693943, "lon": 18.0543713 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/f48f79a91c134a8fa9f86e1efbf7d4fc.jpeg",
+          "caption": "",
+          "position": 0
+        }
+      ],
+      "videos": [],
+      "boost_value": 9.46,
+      "discount": null,
+      "title": "Orrestaslingan 24",
+      "audience": "everyone",
+      "is_short_lease": false,
+      "early_access": null,
+      "rent": 20212,
+      "rooms": 4.0,
+      "area": 81.5,
+      "date_access": "2026-08-01",
+      "is_quick_apply": false
+    },
+    {
+      "id": 230730,
+      "references": {
+        "estate": 17687,
+        "apartment": 275370,
+        "object_ad": 230730,
+        "company": 1677,
+        "office": 2607,
+        "project": null
+      },
+      "type": "individual",
+      "uri": "/lagenhet/230730-5.5rum-stockholm-stockholms-l\u00e4n-kulst\u00f6tarv\u00e4gen-58",
+      "municipality": "Stockholm",
+      "county": "Stockholms l\u00e4n",
+      "city": "Stockholm",
+      "location": { "lat": 59.2678358, "lon": 18.0930909 },
+      "images": [
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/7e746b34058a4f889bdba477e0828473.jpeg",
+          "caption": "",
+          "position": 0
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/3a44c7af4161495882019709271b89c6.jpeg",
+          "caption": "",
+          "position": 1
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/42bb95c58c2d437b9c85710c1db2b6ae.jpeg",
+          "caption": "",
+          "position": 2
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/e48d251b820542588b07d260467fa62d.jpeg",
+          "caption": "",
+          "position": 3
+        },
+        {
+          "image": "https://homeq-media-live.s3.amazonaws.com/apartment_images/fab1c3e734d14d61859c7a7be10a5601.jpeg",
+          "caption": "",
+          "position": 4
+        }
+      ],
+      "videos": [],
+      "boost_value": 0,
+      "discount": null,
+      "title": "Kulst\u00f6tarv\u00e4gen 58",
+      "audience": "everyone",
+      "is_short_lease": false,
+      "early_access": null,
+      "rent": 24000,
+      "rooms": 5.5,
+      "area": 128.0,
+      "date_access": null,
+      "is_quick_apply": false
+    }
+  ],
+  "total_hits": 8
+}

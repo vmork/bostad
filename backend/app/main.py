@@ -12,10 +12,9 @@ from app.models import (
     ListingsStreamEvent,
     ScrapeProgress,
 )
-from app.scrape_bostadsthlm import (
-    ListingsFetchException,
-    scrape_all_listings_with_options,
-)
+from app.scraping.core import scrape_listings_with_options
+from app.scraping.registry import get_listing_sources
+from app.scraping.scrape_utils import ListingsFetchException
 
 configure_logging()
 
@@ -41,7 +40,7 @@ async def _all_listings_with_options(
     options: ListingsSearchOptions,
 ) -> AllListingsResponse:
     try:
-        return await scrape_all_listings_with_options(options)
+        return await scrape_listings_with_options(get_listing_sources(options.sources), options)
     except ListingsFetchException as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -70,7 +69,8 @@ async def _all_listings_stream_with_options(
     async def run_scrape() -> None:
         nonlocal last_progress
         try:
-            await scrape_all_listings_with_options(
+            await scrape_listings_with_options(
+                sources=get_listing_sources(options.sources),
                 options=options,
                 progress_callback=emit_progress,
             )

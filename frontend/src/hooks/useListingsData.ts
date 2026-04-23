@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-import { ListingSources, type AllListingsResponse } from "../api/models";
+import type { AllListingsResponse, ListingSourceStats } from "../api/models";
 import {
-  cacheKeyForSource,
+  LISTINGS_CACHE_KEY,
   LISTINGS_STREAM_URL,
   openListingsStream,
   readCachedListings,
@@ -15,6 +15,7 @@ import {
 const EMPTY_RESPONSE: AllListingsResponse = {
   listings: [],
   errors: [],
+  sourceStats: [],
 };
 
 interface UseListingsDataResult {
@@ -24,7 +25,7 @@ interface UseListingsDataResult {
   isFetching: boolean;
   fetchError: string | null;
   progress: ScrapeProgress | null;
-  loggedIn: boolean | null;
+  sourceStats: ListingSourceStats[];
   startListingsStream: (options?: ListingsStreamOptions) => void;
   newListingIds: Set<string>;
   refreshDelta: {
@@ -34,30 +35,16 @@ interface UseListingsDataResult {
 }
 
 export function useListingsData(): UseListingsDataResult {
-  const source = ListingSources.bostadsthlm;
-  const cacheKey = cacheKeyForSource(source);
-
   const [cachedListings, setCachedListings] = useState<CachedListings | null>(() =>
-    readCachedListings(cacheKey),
+    readCachedListings(LISTINGS_CACHE_KEY),
   );
   const [progress, setProgress] = useState<ScrapeProgress | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(() => {
-    if (!cachedListings) {
-      return null;
-    }
-    return cachedListings.loggedIn ?? null;
-  });
   const closeStreamRef = useRef<(() => void) | null>(null);
-  const latestLoggedInRef = useRef<boolean | null>(loggedIn);
   const newCountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [newListingIds, setNewListingIds] = useState<Set<string>>(new Set());
   const [refreshDelta, setRefreshDelta] = useState({ added: 0, removed: 0 });
-
-  useEffect(() => {
-    latestLoggedInRef.current = loggedIn;
-  }, [loggedIn]);
 
   useEffect(() => {
     return () => {
@@ -75,16 +62,12 @@ export function useListingsData(): UseListingsDataResult {
     setIsFetching(true);
     setFetchError(null);
     setProgress(null);
-    setLoggedIn(null);
 
     closeStreamRef.current = openListingsStream(
       LISTINGS_STREAM_URL,
       {
         onProgress: (nextProgress) => {
           setProgress(nextProgress);
-          if (typeof nextProgress.loggedIn === "boolean") {
-            setLoggedIn(nextProgress.loggedIn);
-          }
         },
         onComplete: (payload) => {
           // Detect new listings relative to previous cache
@@ -112,13 +95,12 @@ export function useListingsData(): UseListingsDataResult {
           const nextCachedListings = {
             data: payload,
             updatedAt: new Date().toISOString(),
-            loggedIn: latestLoggedInRef.current,
           };
 
           setIsFetching(false);
           setFetchError(null);
           setCachedListings(nextCachedListings);
-          writeCachedListings(cacheKey, nextCachedListings);
+          writeCachedListings(nextCachedListings, LISTINGS_CACHE_KEY);
           closeStreamRef.current = null;
         },
         onFailure: (message, nextProgress) => {
@@ -134,6 +116,8 @@ export function useListingsData(): UseListingsDataResult {
     );
   };
 
+  const sourceStats = progress?.sourceStats ?? cachedListings?.data.sourceStats ?? [];
+
   return {
     data: cachedListings?.data ?? EMPTY_RESPONSE,
     updatedAt: cachedListings?.updatedAt ?? null,
@@ -141,7 +125,7 @@ export function useListingsData(): UseListingsDataResult {
     isFetching,
     fetchError,
     progress,
-    loggedIn,
+    sourceStats,
     startListingsStream,
     newListingIds,
     refreshDelta,

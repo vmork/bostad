@@ -4,10 +4,13 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListingSources } from './listingSources';
 import type { ListingParseErrorUrl } from './listingParseErrorUrl';
 
 export interface ListingParseError {
   id: string;
+  source: ListingSources;
+  sourceLocalId: string;
   url?: ListingParseErrorUrl;
   reason: string;
 }

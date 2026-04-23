@@ -46,9 +46,11 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
 const ListingUI = memo(function ListingUI({
   listing: lg,
   isNew,
+  sourceName,
 }: {
   listing: Listing;
   isNew?: boolean;
+  sourceName: string;
 }) {
   const timeSincePost = lg.datePosted ? Date.now() - new Date(lg.datePosted).getTime() : null;
 
@@ -93,16 +95,19 @@ const ListingUI = memo(function ListingUI({
       {/* Row 1: header */}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 items-center sm:grid-rows-1">
         {/* title (street name) */}
-        <span className="min-w-0 text-lg font-medium w-fit">
-          <a
-            href={lg.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block truncate underline decoration-1 hover:decoration-2 text-dark visited:text-primary/10"
-          >
-            {lg.name}
-          </a>
-        </span>
+        <div className="min-w-0 flex flex-wrap items-center gap-2">
+          <span className="min-w-0 text-lg font-medium w-fit">
+            <a
+              href={lg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate underline decoration-1 hover:decoration-2 text-dark visited:text-primary/10"
+            >
+              {lg.name}
+            </a>
+          </span>
+          <span className="text-xs text-gs-3">({sourceName})</span>
+        </div>
         {/* location */}
         <span className="col-span-2 row-start-2 min-w-0 truncate sm:col-span-1 sm:col-start-2 sm:row-start-1">
           {lg.locMunicipality} - {lg.locDistrict}

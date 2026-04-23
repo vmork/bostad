@@ -6,10 +6,10 @@
  */
 import type { Listing } from './listing';
 import type { ListingParseError } from './listingParseError';
-import type { AllListingsResponseLoggedIn } from './allListingsResponseLoggedIn';
+import type { ListingSourceStats } from './listingSourceStats';
 
 export interface AllListingsResponse {
   listings: Listing[];
   errors: ListingParseError[];
-  loggedIn?: AllListingsResponseLoggedIn;
+  sourceStats?: ListingSourceStats[];
 }

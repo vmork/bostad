@@ -4,6 +4,7 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListingSources } from './listingSources';
 import type { ListingApartmentType } from './listingApartmentType';
 import type { ListingFeatures } from './listingFeatures';
 import type { ListingFloor } from './listingFloor';
@@ -24,6 +25,8 @@ import type { ListingFloorRange } from './listingFloorRange';
 
 export interface Listing {
   id: string;
+  source: ListingSources;
+  sourceLocalId: string;
   url: string;
   name: string;
   locMunicipality: string;

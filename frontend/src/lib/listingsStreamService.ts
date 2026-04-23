@@ -1,15 +1,18 @@
 import {
   ListingSources as ListingSourceValues,
   type AllListingsResponse,
+  type ListingSourceStats,
   type ListingSources,
+  type ListingsSearchOptions,
 } from "../api/models";
 
 export const LISTINGS_STREAM_URL = "/api/all_listings/stream";
+export const LISTINGS_CACHE_KEY = "bostad:listings-cache:all";
+export const DEFAULT_LISTING_SOURCES: ListingSources[] = [ListingSourceValues.bostadsthlm];
 
 export interface CachedListings {
   data: AllListingsResponse;
   updatedAt: string;
-  loggedIn?: boolean | null;
 }
 
 export type ScrapeEventStatus = "started" | "progress" | "complete" | "failed";
@@ -19,9 +22,9 @@ export interface ScrapeProgress {
   current: number;
   total: number;
   errors: number;
-  loggedIn?: boolean | null;
   listingId?: string;
   source?: ListingSources;
+  sourceStats?: ListingSourceStats[];
   message?: string;
 }
 
@@ -31,17 +34,9 @@ export interface ListingsStreamEvent {
   data?: AllListingsResponse;
 }
 
-export interface ListingsStreamOptions {
-  sources?: ListingSources[];
-  maxListings?: number;
-  cookie?: string;
-}
+export type ListingsStreamOptions = ListingsSearchOptions;
 
-export function cacheKeyForSource(source: ListingSources): string {
-  return `bostad:listings-cache:${source}`;
-}
-
-export function readCachedListings(cacheKey: string): CachedListings | null {
+export function readCachedListings(cacheKey: string = LISTINGS_CACHE_KEY): CachedListings | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -59,7 +54,10 @@ export function readCachedListings(cacheKey: string): CachedListings | null {
   }
 }
 
-export function writeCachedListings(cacheKey: string, payload: CachedListings): void {
+export function writeCachedListings(
+  payload: CachedListings,
+  cacheKey: string = LISTINGS_CACHE_KEY,
+): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -172,7 +170,7 @@ export function openListingsStream(
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(options ?? { sources: [ListingSourceValues.bostadsthlm] }),
+        body: JSON.stringify(options ?? { sources: DEFAULT_LISTING_SOURCES }),
         signal: abortController.signal,
       });
 

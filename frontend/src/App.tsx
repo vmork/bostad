@@ -7,7 +7,7 @@ import { MapFilterModal } from "./components/MapFilterModal";
 import { RefetchButton } from "./components/RefetchButton";
 import { SortDropdown } from "./components/SortDropdown";
 
-import { type Listing, type ListingParseError } from "./api/models";
+import { type Listing, type ListingParseError, type ListingSourceStats } from "./api/models";
 import { useListingsData } from "./hooks/useListingsData";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { applyFiltersToList, deriveContextualFilterStats, sortList } from "./lib/filterSort";
@@ -21,13 +21,47 @@ import {
   type SerializedFilterState,
   type SerializedSortEntry,
 } from "./lib/keyConfig";
+import { mergeSourceMetadata } from "./lib/sourceMetadata";
 import { cn, formatUpdatedAt } from "./lib/utils";
 import { Button } from "./components/generic/Button";
 
 const LISTINGS_FILTERS_STORAGE_KEY = "listingsFilters";
 const LISTINGS_SORT_STORAGE_KEY = "listingsSort";
 
-function ParseErrorsPanel({ errors }: { errors: ListingParseError[] }) {
+function SourceStatsPanel({ sourceStats }: { sourceStats: ListingSourceStats[] }) {
+  if (sourceStats.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {sourceStats.map((stat) => (
+        <a
+          key={stat.source}
+          href={stat.globalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border border-gs-3/50 bg-gs-0/70 px-3 py-2 text-sm text-dark"
+        >
+          <span className="font-medium">{stat.name}</span>
+          <span className="ml-2 text-gs-3">
+            {stat.loggedIn == null ? "Login unknown" : stat.loggedIn ? "Logged in" : "Logged out"}
+          </span>
+          <span className="ml-2 text-gs-3">· {stat.numListings ?? 0} listings</span>
+          <span className="ml-2 text-gs-3">· {stat.numErrors ?? 0} errors</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function ParseErrorsPanel({
+  errors,
+  sourceNameById,
+}: {
+  errors: ListingParseError[];
+  sourceNameById: Record<string, { name: string; globalUrl: string }>;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -48,6 +82,9 @@ function ParseErrorsPanel({ errors }: { errors: ListingParseError[] }) {
               key={error.id}
               className="rounded-md border border-red-200 bg-white/60 px-3 py-2 text-sm text-red-900 overflow-auto"
             >
+              <div className="mb-1 font-medium">
+                {sourceNameById[error.source]?.name ?? error.source}
+              </div>
               <span className="font-bold">{error.url ? `url: ${error.url}` : "url: N/A"}</span>
               <pre>{error.reason}</pre>
             </div>
@@ -61,14 +98,21 @@ function ParseErrorsPanel({ errors }: { errors: ListingParseError[] }) {
 const ListingsList = memo(function ListingsList({
   filteredListings,
   newListingIds,
+  sourceNameById,
 }: {
   filteredListings: Listing[];
   newListingIds: Set<string>;
+  sourceNameById: Record<string, { name: string; globalUrl: string }>;
 }) {
   return (
     <div className="space-y-3">
       {filteredListings.map((listing) => (
-        <ListingUI key={listing.id} listing={listing} isNew={newListingIds.has(listing.id)} />
+        <ListingUI
+          key={listing.id}
+          listing={listing}
+          isNew={newListingIds.has(listing.id)}
+          sourceName={sourceNameById[listing.source]?.name ?? listing.source}
+        />
       ))}
     </div>
   );
@@ -121,6 +165,10 @@ export default function App() {
 
   const deferredDisplayedListings = useDeferredValue(displayedListings);
   const displayedListingsAreStale = deferredDisplayedListings !== displayedListings;
+  const sourceNameById = useMemo(
+    () => mergeSourceMetadata(listingsQuery.sourceStats),
+    [listingsQuery.sourceStats],
+  );
 
   // if (displayedListings) {
   //   console.log(displayedListings);
@@ -145,11 +193,6 @@ export default function App() {
             {listingsQuery.updatedAt && (
               <p className="text-sm text-gs-3 mt-2">
                 Updated {formatUpdatedAt(listingsQuery.updatedAt)}
-                {listingsQuery.loggedIn !== null && (
-                  <span className="ml-2">
-                    · {listingsQuery.loggedIn ? "Logged in" : "Not logged in"}
-                  </span>
-                )}
                 {(listingsQuery.refreshDelta.added > 0 ||
                   listingsQuery.refreshDelta.removed > 0) && (
                   <span className="text-primary ml-2 font-medium">
@@ -166,6 +209,9 @@ export default function App() {
                 )}
               </p>
             )}
+            <div className="mt-2">
+              <SourceStatsPanel sourceStats={listingsQuery.sourceStats} />
+            </div>
           </div>
 
           {/* Blocking fetch error */}
@@ -176,7 +222,9 @@ export default function App() {
             </div>
           )}
           {/* List of non-blocking parse errors */}
-          {errors.length > 0 && <ParseErrorsPanel errors={errors} />}
+          {errors.length > 0 && (
+            <ParseErrorsPanel errors={errors} sourceNameById={sourceNameById} />
+          )}
 
           {/* Controls */}
           <div className="flex gap-3 flex-wrap">
@@ -216,6 +264,7 @@ export default function App() {
         <ListingsList
           filteredListings={deferredDisplayedListings}
           newListingIds={listingsQuery.newListingIds}
+          sourceNameById={sourceNameById}
         />
       </div>
 

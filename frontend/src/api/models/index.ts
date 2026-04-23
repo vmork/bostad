@@ -7,6 +7,9 @@
 
 export * from './allListingsResponse';
 export * from './allListingsResponseLoggedIn';
+export * from './bostadSthlmSearchOptions';
+export * from './bostadSthlmSearchOptionsCookie';
+export * from './bostadSthlmSearchOptionsMaxListings';
 export * from './coordinates';
 export * from './dateRange';
 export * from './dateRangeMax';
@@ -38,8 +41,11 @@ export * from './listingQueuePosition';
 export * from './listingRentRange';
 export * from './listingRentalPeriod';
 export * from './listingRequirements';
+export * from './listingSourceStats';
+export * from './listingSourceStatsLoggedIn';
 export * from './listingSources';
 export * from './listingsSearchOptions';
+export * from './listingsSearchOptionsBostadsthlm';
 export * from './listingsSearchOptionsCookie';
 export * from './listingsSearchOptionsMaxListings';
 export * from './queuePosition';

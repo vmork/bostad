@@ -46,6 +46,26 @@ class TenantRequirements(CamelModel):
     num_tenants_range: Range | None = None
 
 
+ApartmentType = Literal["regular", "youth", "student", "senior"]
+
+
+class ListingSources(StrEnum):
+    """Supported listing source identifiers shared across the API."""
+
+    BOSTAD_STHLM = "bostadsthlm"
+
+
+class ListingSourceStats(CamelModel):
+    """Per-source scrape statistics exposed to the frontend."""
+
+    source: ListingSources
+    name: str
+    global_url: str
+    logged_in: bool | None = None
+    num_listings: int = 0
+    num_errors: int = 0
+
+
 class ListingFeatures(CamelModel):
     # should always be available in json response
     balcony: bool | None = None
@@ -66,8 +86,12 @@ class ListingFeatures(CamelModel):
 
 
 class Listing(CamelModel):
-    # Required
+    # Source identity
     id: str
+    source: ListingSources
+    source_local_id: str
+
+    # Required listing data
     url: str
     name: str  # eg "Herrhagsvägen 137"
     loc_municipality: str  # eg "Stockholm"
@@ -102,68 +126,66 @@ class Listing(CamelModel):
 
 class ListingParseError(CamelModel):
     id: str
+    source: ListingSources
+    source_local_id: str
     url: str | None = None
     reason: str
 
 
-ApartmentType = Literal["regular", "youth", "student", "senior"]
+def _normalize_cookie_value(cookie: str | None) -> str | None:
+    """Normalize user-provided cookie input from UI/curl snippets."""
+
+    if cookie is None:
+        return None
+
+    normalized = cookie.strip()
+    if not normalized:
+        return None
+
+    if normalized.lower().startswith("cookie:"):
+        normalized = normalized.split(":", 1)[1].strip()
+
+    if normalized.startswith("-b "):
+        normalized = normalized[3:].strip()
+
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
+        normalized = normalized[1:-1].strip()
+
+    normalized = " ".join(normalized.replace("\r", " ").replace("\n", " ").split())
+    return normalized or None
 
 
-class ListingSources(StrEnum):
-    """Supported listing source identifiers shared across the API."""
+class BostadSthlmSearchOptions(CamelModel):
+    """Source-specific search options for bostad.stockholm.se."""
 
-    BOSTAD_STHLM = "bostadsthlm"
+    max_listings: int | None = Field(default=None, ge=1)
+    cookie: str | None = None
+
+    @field_validator("cookie")
+    @classmethod
+    def _normalize_cookie(cls, cookie: str | None) -> str | None:
+        return _normalize_cookie_value(cookie)
 
 
 class ListingsSearchOptions(CamelModel):
     """Typed search options for listing fetch requests.
 
-    The API accepts a list to be forward-compatible with multi-source scraping,
-    but currently only one built-in source is supported.
-
-    `max_listings` can be used during debugging to parse only the first N
-    listing index items. It defaults to None, which parses all listings.
+    `sources` selects which sources to scrape in one combined request, while
+    each source can expose its own nested option object.
     """
 
     sources: list[ListingSources] = Field(default_factory=lambda: [ListingSources.BOSTAD_STHLM])
-    max_listings: int | None = Field(default=None, ge=1)
-    cookie: str | None = None
+    bostadsthlm: BostadSthlmSearchOptions | None = None
 
     @field_validator("sources")
     @classmethod
     def _validate_sources(cls, sources: list[ListingSources]) -> list[ListingSources]:
         if not sources:
             raise ValueError("At least one source must be provided")
-        if len(sources) != 1:
-            raise ValueError("Only one source is currently supported")
-        return sources
 
-    @field_validator("cookie")
-    @classmethod
-    def _normalize_cookie(cls, cookie: str | None) -> str | None:
-        """Normalize user-provided cookie input from UI/curl snippets.
-
-        We accept plain cookie strings and also tolerate common pasted forms,
-        such as a leading "Cookie:" prefix or a quoted value.
-        """
-        if cookie is None:
-            return None
-
-        normalized = cookie.strip()
-        if not normalized:
-            return None
-
-        if normalized.lower().startswith("cookie:"):
-            normalized = normalized.split(":", 1)[1].strip()
-
-        if normalized.startswith("-b "):
-            normalized = normalized[3:].strip()
-
-        if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
-            normalized = normalized[1:-1].strip()
-
-        normalized = " ".join(normalized.replace("\r", " ").replace("\n", " ").split())
-        return normalized or None
+        # Preserve order while dropping duplicates so repeated UI selections do
+        # not create redundant source work.
+        return list(dict.fromkeys(sources))
 
 
 ScrapeEventStatus = Literal["started", "progress", "complete", "failed"]
@@ -174,16 +196,16 @@ class ScrapeProgress(CamelModel):
     current: int
     total: int
     errors: int = 0
-    logged_in: bool | None = None
     listing_id: str | None = None
     source: ListingSources | None = None
+    source_stats: list[ListingSourceStats] = Field(default_factory=list)
     message: str | None = None
 
 
 class AllListingsResponse(CamelModel):
     listings: list[Listing]
     errors: list[ListingParseError]
-    logged_in: bool | None = None
+    source_stats: list[ListingSourceStats] = Field(default_factory=list)
 
 
 class ListingsStreamEvent(CamelModel):

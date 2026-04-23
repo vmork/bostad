@@ -5,20 +5,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListingSources } from './listingSources';
-import type { ListingsSearchOptionsMaxListings } from './listingsSearchOptionsMaxListings';
-import type { ListingsSearchOptionsCookie } from './listingsSearchOptionsCookie';
+import type { ListingsSearchOptionsBostadsthlm } from './listingsSearchOptionsBostadsthlm';
 
 /**
  * Typed search options for listing fetch requests.
 
-The API accepts a list to be forward-compatible with multi-source scraping,
-but currently only one built-in source is supported.
-
-`max_listings` can be used during debugging to parse only the first N
-listing index items. It defaults to None, which parses all listings.
+`sources` selects which sources to scrape in one combined request, while
+each source can expose its own nested option object.
  */
 export interface ListingsSearchOptions {
   sources?: ListingSources[];
-  maxListings?: ListingsSearchOptionsMaxListings;
-  cookie?: ListingsSearchOptionsCookie;
+  bostadsthlm?: ListingsSearchOptionsBostadsthlm;
 }
