@@ -10,11 +10,11 @@ from app.models import (
     ListingSourceStats,
     ListingsSearchOptions,
 )
-from app.scraping.core import scrape_listings_with_options
+from app.scraping.core import ListingSource, scrape_listings_with_options
 from app.scraping.scrape_utils import build_source_scoped_id
 
 
-class FakeSource:
+class FakeSource(ListingSource):
     source_id = ListingSources.BOSTAD_STHLM
     name = "Bostadsförmedlingen"
     global_url = "https://bostad.stockholm.se"

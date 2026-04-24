@@ -25,7 +25,7 @@ def scraped_updates(scraped_data: CamelModel) -> dict[str, Any]:
     """Return typed non-null scraped fields for safe model_copy updates."""
 
     updates: dict[str, Any] = {}
-    for field_name in scraped_data.model_fields:
+    for field_name in type(scraped_data).model_fields:
         value = getattr(scraped_data, field_name)
         if value is not None:
             updates[field_name] = value

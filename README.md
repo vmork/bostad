@@ -1,25 +1,32 @@
 ## TODO
 
+- Scraping
+  - homeq ratelimiting
+
+
 - map:
-  - smooth scrolling
-  -show name of hovered somewhere
-  - display selected regions and total selected count better, maybe in title bar? or right below if
-    title bar was smaller
+  - better styling of dots
+  - clicking dots link to url
+  - popup for dots stays when hovering over it
 
 - filters
   - move map trigger inside filter dropdown, also show num regions/districts
-    - maybe only regions on small screens
+  - move filters to sidebar on large screens, (modal on small screens?)
 
-- other
-  - "add note" btn to each listing row
-    - show collapsed note,
-  - "show on map" on listing row that shows map popup with highlight
-  - clicking on listing dot links to url
+- Other
+  - listing actions
+    - "add note" btn
+      - show collapsed note,
+    - "show on map", on hover shows map popup (no sidebar) with highlight
+    - "save listing"
 
-Personal page
-- save/favorite listings to personal collection
-  - Need db or just localstorage?
-- "bevakning", feed of filtered new listings sorted by recent
+  - save/favorite listings to personal collection
+    - implement for now with localstorage, later accounts
+  - "bevakning", feed of filtered new listings sorted by recent
+  - hosting
+  - accounts (after hosting)
+  - autofetch once a day in background (after hosting)
 
-## extra
-- stats based on selected filters
+  - options dropdown should be refactored, more generic, reuse text/numeric input stuff from filter ui
+  - options dropdown source checkbox should be to the left of name (no "enabled" text needed)
+  - source stats are ugly (should be smaller, maybe have title like "sources")

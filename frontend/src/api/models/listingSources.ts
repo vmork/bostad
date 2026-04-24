@@ -14,4 +14,5 @@ export type ListingSources = typeof ListingSources[keyof typeof ListingSources];
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ListingSources = {
   bostadsthlm: 'bostadsthlm',
+  homeq: 'homeq',
 } as const;

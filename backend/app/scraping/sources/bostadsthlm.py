@@ -39,8 +39,8 @@ logger = logging.getLogger(__name__)
 
 
 BOSTAD_STHLM_BASE_PATH = "https://bostad.stockholm.se"
-LISTINGS_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
-DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+INDEX_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
+LISTING_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 
 IMAGE_HREF_RE = re.compile(r"\.(?:jpe?g|png|webp|gif)(?:$|\?)", re.IGNORECASE)
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -60,7 +60,7 @@ NEGATION_PREFIXES = ("ej ", "inte ", "ingen ", "inget ", "utan ", "saknar ")
 
 
 # Browser-like defaults used by both index and detail requests.
-DEFAULT_BOSTAD_HEADERS = {
+DEFAULT_HEADERS = {
     "Accept": "*/*",
     "Accept-Language": "sv-SE,sv;q=0.9,en-SG;q=0.8,en;q=0.7,en-US;q=0.6",
     "Connection": "keep-alive",
@@ -156,15 +156,44 @@ def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
         if container is None:
             continue
 
+        # Logged-out pages render requirements as list items, while logged-in pages
+        # wrap each requirement in accordion headers with status icons.
         items.extend(
-            text for item in container.select("li") if (text := item.get_text(" ", strip=True))
+            text
+            for item in container.select("li, .js-accordion__header")
+            if (text := item.get_text(" ", strip=True))
         )
 
     return items
 
 
+def _extract_section_text(soup: BeautifulSoup, heading_text: str) -> str:
+    normalized_heading = heading_text.strip().lower()
+    for heading in soup.find_all(["h2", "h3"]):
+        if heading.get_text(" ", strip=True).strip().lower() != normalized_heading:
+            continue
+
+        parts: list[str] = []
+        for sibling in heading.next_siblings:
+            if isinstance(sibling, Tag) and sibling.name and sibling.name.startswith("h"):
+                break
+
+            text = (
+                sibling.get_text(" ", strip=True)
+                if isinstance(sibling, Tag)
+                else str(sibling).strip()
+            )
+            if text:
+                parts.append(text)
+
+        return " ".join(parts)
+
+    return ""
+
+
 def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements | None:
     requirement_items = _extract_requirement_items(soup)
+    housing_type_text = _extract_section_text(soup, "Typ av bostad")
     page_text = soup.get_text(" ", strip=True)
     if not requirement_items and not page_text:
         return None
@@ -198,7 +227,11 @@ def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements | None:
                 num_tenants_max = parsed_max_tenants
 
     if (age_min is None or age_max is None) and (
-        match := re.search(r"mellan\s+(\d+)\s+och\s+(\d+)\s*år", page_text, re.IGNORECASE)
+        match := re.search(
+            r"mellan\s+(\d+)\s+och\s+(\d+)\s*år",
+            housing_type_text,
+            re.IGNORECASE,
+        )
     ):
         if age_min is None:
             age_min = float(match.group(1))
@@ -437,6 +470,7 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         url = f"{BOSTAD_STHLM_BASE_PATH}{data['Url']}"
         loc_municipality = data["Kommun"]
         loc_district = data["Stadsdel"]
+        lat, lng = data["KoordinatLatitud"], data["KoordinatLongitud"]
         rent = data["Hyra"] or data["LägstaHyran"]
         area_sqm = data["Yta"] or data["LägstaYtan"]
         num_rooms = data["AntalRum"] or data["LägstaAntalRum"]
@@ -445,13 +479,12 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
             f"Missing required key {error} for listing {source_local_id}"
         ) from error
 
-    lat, lng = data.get("KoordinatLatitud"), data.get("KoordinatLongitud")
-    coords = Coordinates(lat=lat, long=lng) if lat and lng else None
     apartment_type: ApartmentType = (
         "student"
         if data.get("Student")
         else ("youth" if data.get("Ungdom") else "senior" if data.get("Senior") else "regular")
     )
+    coords = Coordinates(lat=lat, long=lng) if lat is not None and lng is not None else None
     num_apartments = data.get("Antal")
     rent_range = Range(min=data.get("LägstaHyran"), max=data.get("HögstaHyran"))
     area_sqm_range = Range(min=data.get("LägstaYtan"), max=data.get("HögstaYtan"))
@@ -473,6 +506,7 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         name=name,
         loc_municipality=loc_municipality,
         loc_district=loc_district,
+        coords=coords,
         rent=rent,
         area_sqm=area_sqm,
         num_rooms=num_rooms,
@@ -480,7 +514,6 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         floor=floor,
         features=features,
         queue_position=queue_position,
-        coords=coords,
         date_posted=date_posted,
         application_deadline=application_deadline,
         num_apartments=num_apartments,
@@ -505,7 +538,7 @@ def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
 
 
 async def _fetch_listing_html(client: httpx.AsyncClient, url: str) -> str:
-    response = await client.get(url, timeout=DETAIL_TIMEOUT)
+    response = await client.get(url, timeout=LISTING_TIMEOUT)
     response.raise_for_status()
     return response.text
 
@@ -588,7 +621,6 @@ async def parse_listing_async(
 
     return listing
 
-
 class BostadSthlmSource(ListingSource):
     """Source implementation for bostad.stockholm.se listings."""
 
@@ -606,7 +638,7 @@ class BostadSthlmSource(ListingSource):
         options: ListingsSearchOptions,
     ) -> None:
         source_options = self._get_options(options)
-        client.headers.update(DEFAULT_BOSTAD_HEADERS)
+        client.headers.update(DEFAULT_HEADERS)
 
         cookie_preview = f"{source_options.cookie[:24]}..." if source_options.cookie else None
         logger.info(
@@ -662,20 +694,20 @@ class BostadSthlmSource(ListingSource):
         if self.source_id not in options.sources:
             raise ValueError(f"Unsupported source: {options.sources[0]}")
 
-        listings_url = f"{BOSTAD_STHLM_BASE_PATH}/AllaAnnonser/"
-        logger.info(f"[{self.source_id}] Fetching listings index from {listings_url}")
+        index_url = urljoin(BOSTAD_STHLM_BASE_PATH, "AllaAnnonser/")
+        logger.info(f"[{self.source_id}] Fetching listings index from {index_url}")
         started_at = time.time()
         try:
             response = await client.get(
-                listings_url,
-                timeout=LISTINGS_TIMEOUT,
+                index_url,
+                timeout=INDEX_TIMEOUT,
             )
             response.raise_for_status()
         except httpx.HTTPError as error:
             logger.error(
-                f"[{self.source_id}] Failed to fetch listings index from {listings_url}: {error}"
+                f"[{self.source_id}] Failed to fetch listings index from {index_url}: {error}"
             )
-            raise ListingsFetchException(f"Failed to fetch {listings_url}: {error}") from error
+            raise ListingsFetchException(f"Failed to fetch {index_url}: {error}") from error
 
         logger.info(
             f"[{self.source_id}] Fetched listings index in "

@@ -6,6 +6,7 @@
  */
 import type { ListingSources } from './listingSources';
 import type { ListingsSearchOptionsBostadsthlm } from './listingsSearchOptionsBostadsthlm';
+import type { ListingsSearchOptionsHomeq } from './listingsSearchOptionsHomeq';
 
 /**
  * Typed search options for listing fetch requests.
@@ -16,4 +17,5 @@ each source can expose its own nested option object.
 export interface ListingsSearchOptions {
   sources?: ListingSources[];
   bostadsthlm?: ListingsSearchOptionsBostadsthlm;
+  homeq?: ListingsSearchOptionsHomeq;
 }

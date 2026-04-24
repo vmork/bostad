@@ -8,9 +8,10 @@ The control flow is:
 
 1. `useListingsData()` returns `listings` in `frontend/src/App.tsx`.
 2. `App.tsx` hydrates persisted filter state and sort state from local storage.
-3. `App.tsx` keeps filter stats in sync with the current listing data via `syncFiltersWithData(...)`.
-4. `App.tsx` computes `displayedListings` with `applyFiltersToList(listings, filters)` and then `sortList(filtered, sortEntries)`.
-5. `FilterDropdown.tsx` and `SortDropdown.tsx` mutate the current filter and sort arrays through setters owned by `App.tsx`.
+3. `App.tsx` keeps the runtime filters in sync with the current listing data via `syncFiltersWithData(...)`.
+4. `App.tsx` computes `displayFilters` with `deriveContextualFilterStats(filters, listings)` so each control shows counts scoped by the other active filters.
+5. `App.tsx` computes `displayedListings` with `applyFiltersToList(listings, filters)` and then `sortList(filtered, sortEntries)`.
+6. `FilterDropdown.tsx` and `SortDropdown.tsx` mutate the current filter and sort arrays through setters owned by `App.tsx`.
 
 ## Core File Responsibilities
 
@@ -24,6 +25,7 @@ This file is the generic engine.
 - `RangeFilterStats`, `SetFilterStats`, and `BooleanFilterStats` are derived from the active listing dataset.
 - `createRangeFilter`, `createSetFilter`, and `createBooleanFilter` assemble a runtime filter object from definition + state + computed stats.
 - `applyFiltersToList(...)` applies all enabled filters with `every(...)` semantics.
+- `deriveContextualFilterStats(...)` recomputes per-filter stats from the listings that survive the other active filters.
 - `sortList(...)` decorates rows with precomputed sort values, applies ordered comparator passes, and falls back to original index for stable ordering.
 
 Important details:
@@ -33,6 +35,7 @@ Important details:
 - Set filters treat `included.length === 0` as include-all unless the UI has disabled the filter.
 - Sorting handles `null` values explicitly and pushes them behind non-null values in the default comparator.
 - Sorting precomputes key values once per item so time-derived accessors stay stable during the sort pass.
+- Set-filter contextual stats preserve the full option universe from the complete dataset so zero-count options remain visible in the UI.
 
 ### `frontend/src/lib/keyConfig.ts`
 
@@ -70,9 +73,10 @@ This file is the orchestration layer.
 - Initializes `filters` with `hydrateFilters(...)`.
 - Initializes `sortEntries` with `hydrateSortEntries(...)`.
 - Re-syncs filter stats whenever `listings` changes via `syncFiltersWithData(...)`.
+- Derives `displayFilters` with `deriveContextualFilterStats(...)` before rendering the filter UI.
 - Persists filter and sort state with `serializeFilters(...)` and `serializeSortEntries(...)`.
 - Computes `displayedListings` with a strict filter-then-sort pipeline.
-- Passes state and setters into `FilterDropdown` and `SortDropdown`.
+- Passes contextual `displayFilters` into `FilterDropdown` and passes state into `SortDropdown`.
 
 Important detail:
 
@@ -86,7 +90,8 @@ This file is UI-only state editing for filters.
 - `groupFilters(...)` groups filters by `filter.def.group` using `groupNames` from `keyConfig.ts`.
 - Range rows update `min`, `max`, and `enabled` together.
 - Set rows use `MultiSelect` and infer enabled state from whether any options are selected.
-- Boolean rows let the user enable the filter, choose `yes` or `no`, and optionally include nulls.
+- Boolean rows currently act as yes-only toggles and can optionally include nulls when the filter is active.
+- Entries with `showInFilter: false` remain part of the active filter state but are omitted from the dropdown UI.
 - `clearAllFilters()` resets every filter via `resetFilter(...)`.
 
 Important detail:

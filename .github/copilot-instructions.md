@@ -11,20 +11,22 @@ The codebase now has a source-oriented scraping architecture that keeps generic 
 - Do not try to read the entire geojson files in the data folder, they are very large and will fill up your context window.
 - ALWAYS make sure you are in the right directory (eg backend/ or frontend/) when running commands. By default you will be in the workspace root, so you need to `cd` into the correct subfolder before running commands.
 - When in backend: make sure the venv is activated, and if the server is already running, use that open connection, otherwise start a new one with the command mentioned in the architecture section.
-- For quick frontend testing where localstorage is empty, you can use the "max listings" options from the "search options" dropdown in the browser to fetch data faster.
+- Backend tests live under `backend/tests/`. After changes to backend code, verify them from the correct folder by running `uv run pytest` from `backend/`.
+- For python linting, run `uv run ruff --fix` from `backend/`.
+- For quick frontend testing where localStorage is empty, use the `Options` dropdown next to the fetch button and set `Max listings` to fetch data faster.
 - When using terminal tooling that may simplify commands, prefer `pushd ... && <command>` or an equivalent single-shell command so the intended working directory is preserved.
 
 ## Architecture
 
 ### Type Synchronization (Critical Workflow)
 
-Backend Pydantic models → OpenAPI schema → Generated TypeScript types + React Query hooks.
+Backend Pydantic models → OpenAPI schema → generated TypeScript models + React Query hooks.
 
 **After modifying `backend/app/models.py`:**
 
 1. Restart backend: `uvicorn app.main:app --port 8000` (from `backend/`)
 2. Regenerate frontend types: `pnpm generate:api` (from `frontend/`)
-3. Generated files in `frontend/src/api/` — **never edit manually**
+3. Generated files in `frontend/src/api/models/` and `frontend/src/api/endpoints.ts` — **never edit manually**
 
 When backend request/response models or stream event payloads change, always re-run this workflow before touching frontend typing work.
 
@@ -115,7 +117,8 @@ import type { AllListingsResponse } from "./api/models";
 - `backend/app/scraping/sources/bostadsthlm.py` — Bostad source adapter
 - `backend/app/scrape_bostadsthlm.py` — Bostad parsing helpers + compatibility entrypoints
 - `frontend/orval.config.ts` — API generation config
-- `frontend/src/api/` — Generated code (read-only)
+- `frontend/src/api/models/` — Generated API models (read-only)
+- `frontend/src/api/endpoints.ts` — Generated API hooks/client entrypoint (read-only)
 - `frontend/src/lib/listingsStreamService.ts` — Stream + cache data-layer logic
 - `frontend/src/lib/sourceMetadata.ts` — Source metadata used before backend stats are available
 - `frontend/src/hooks/useListingsData.ts` — React hook coordinating listing fetch state

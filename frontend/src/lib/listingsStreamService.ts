@@ -8,7 +8,10 @@ import {
 
 export const LISTINGS_STREAM_URL = "/api/all_listings/stream";
 export const LISTINGS_CACHE_KEY = "bostad:listings-cache:all";
-export const DEFAULT_LISTING_SOURCES: ListingSources[] = [ListingSourceValues.bostadsthlm];
+export const DEFAULT_LISTING_SOURCES: ListingSources[] = [
+  ListingSourceValues.bostadsthlm,
+  ListingSourceValues.homeq,
+];
 
 export interface CachedListings {
   data: AllListingsResponse;

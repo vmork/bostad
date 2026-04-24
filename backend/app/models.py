@@ -53,6 +53,7 @@ class ListingSources(StrEnum):
     """Supported listing source identifiers shared across the API."""
 
     BOSTAD_STHLM = "bostadsthlm"
+    HOMEQ = "homeq"
 
 
 class ListingSourceStats(CamelModel):
@@ -167,6 +168,13 @@ class BostadSthlmSearchOptions(CamelModel):
         return _normalize_cookie_value(cookie)
 
 
+class HomeQSearchOptions(CamelModel):
+    """Source-specific search options for HomeQ."""
+
+    max_listings: int | None = Field(default=None, ge=1)
+    # TODO: auth cookie
+
+
 class ListingsSearchOptions(CamelModel):
     """Typed search options for listing fetch requests.
 
@@ -176,6 +184,7 @@ class ListingsSearchOptions(CamelModel):
 
     sources: list[ListingSources] = Field(default_factory=lambda: [ListingSources.BOSTAD_STHLM])
     bostadsthlm: BostadSthlmSearchOptions | None = None
+    homeq: HomeQSearchOptions | None = None
 
     @field_validator("sources")
     @classmethod

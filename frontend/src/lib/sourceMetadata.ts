@@ -16,6 +16,10 @@ export const sourceMetadataById: Record<ListingSourceId, SourceMetadata> = {
     name: "Bostadsförmedlingen",
     globalUrl: "https://bostad.stockholm.se",
   },
+  [ListingSources.homeq]: {
+    name: "HomeQ",
+    globalUrl: "https://www.homeq.se",
+  },
 };
 
 export function mergeSourceMetadata(

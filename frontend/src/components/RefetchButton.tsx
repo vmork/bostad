@@ -16,11 +16,15 @@ import { Dropdown } from "./generic/Dropdown";
 const defaultSearchOptions: ListingsStreamOptions = {
   sources: DEFAULT_LISTING_SOURCES,
   bostadsthlm: {},
+  homeq: {},
 };
 
 const sourceOptionSections = [
   {
     id: ListingSources.bostadsthlm,
+  },
+  {
+    id: ListingSources.homeq,
   },
 ];
 
@@ -28,6 +32,7 @@ function normalizeSearchOptions(options: ListingsSearchOptions): ListingsSearchO
   return {
     sources: options.sources?.length ? options.sources : DEFAULT_LISTING_SOURCES,
     bostadsthlm: options.bostadsthlm ?? {},
+    homeq: options.homeq ?? {},
   };
 }
 
@@ -62,6 +67,16 @@ function DataSettings({
     });
   };
 
+  const updateHomeQOptions = (update: NonNullable<ListingsSearchOptions["homeq"]>) => {
+    setSearchOptions({
+      ...normalizedOptions,
+      homeq: {
+        ...normalizedOptions.homeq,
+        ...update,
+      },
+    });
+  };
+
   const handleCookieChange = (value: string) => {
     updateBostadOptions({ cookie: value || undefined });
   };
@@ -70,12 +85,17 @@ function DataSettings({
     updateBostadOptions({ maxListings: value ? parseInt(value, 10) : undefined });
   };
 
+  const handleHomeQMaxListingsChange = (value: string) => {
+    updateHomeQOptions({ maxListings: value ? parseInt(value, 10) : undefined });
+  };
+
   const selectedSources = normalizedOptions.sources ?? [];
   const hasCustomOptions =
     selectedSources.length !== DEFAULT_LISTING_SOURCES.length ||
     selectedSources.some((source) => !DEFAULT_LISTING_SOURCES.includes(source)) ||
     normalizedOptions.bostadsthlm?.cookie != null ||
-    normalizedOptions.bostadsthlm?.maxListings != null;
+    normalizedOptions.bostadsthlm?.maxListings != null ||
+    normalizedOptions.homeq?.maxListings != null;
 
   return (
     <Dropdown.Root triggerMode="hover" preferredSide="bottom" mobileBreakpoint={768} gap={5}>
@@ -88,7 +108,7 @@ function DataSettings({
           )}
         >
           <SettingsIcon size={15} />
-          <span className="mx-1 text-xs">Options</span>
+          <span className="mx-1 text-xs">Sources</span>
         </Button>
       </Dropdown.Trigger>
 
@@ -104,7 +124,14 @@ function DataSettings({
                   <div className="text-xs font-medium uppercase tracking-wide text-gs-4">
                     {metadata.name}
                   </div>
-                  <a className="text-xs text-gs-3 hover:underline" href={metadata.globalUrl} target="_blank" rel="noopener noreferrer">({metadata.globalUrl})</a>
+                  <a
+                    className="text-xs text-gs-3 hover:underline"
+                    href={metadata.globalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    ({metadata.globalUrl})
+                  </a>
                 </div>
 
                 <div className="space-y-2 border-t border-gs-2/80 px-3 py-3">
@@ -116,30 +143,49 @@ function DataSettings({
                   </div>
 
                   <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-                    <span className="text-xs uppercase text-gs-4">Cookie:</span>
-                    <input
-                      type="text"
-                      className={cn(
-                        "w-full no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
-                        normalizedOptions.bostadsthlm?.cookie != null && "border-primary",
-                      )}
-                      placeholder="Enter cookie"
-                      value={normalizedOptions.bostadsthlm?.cookie ?? ""}
-                      onChange={(event) => handleCookieChange(event.target.value)}
-                    />
+                    {section.id === ListingSources.bostadsthlm ? (
+                      <>
+                        <span className="text-xs uppercase text-gs-4">Cookie:</span>
+                        <input
+                          type="text"
+                          className={cn(
+                            "w-full no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
+                            normalizedOptions.bostadsthlm?.cookie != null && "border-primary",
+                          )}
+                          placeholder="Enter cookie"
+                          value={normalizedOptions.bostadsthlm?.cookie ?? ""}
+                          onChange={(event) => handleCookieChange(event.target.value)}
+                        />
 
-                    <span className="text-xs uppercase text-gs-4">Max listings:</span>
-                    <input
-                      type="number"
-                      className={cn(
-                        "w-15 justify-self-end no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
-                        normalizedOptions.bostadsthlm?.maxListings != null && "border-primary",
-                      )}
-                      placeholder="∞"
-                      value={normalizedOptions.bostadsthlm?.maxListings ?? ""}
-                      onChange={(event) => handleMaxListingsChange(event.target.value)}
-                      min={1}
-                    />
+                        <span className="text-xs uppercase text-gs-4">Max listings:</span>
+                        <input
+                          type="number"
+                          className={cn(
+                            "w-15 justify-self-end no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
+                            normalizedOptions.bostadsthlm?.maxListings != null && "border-primary",
+                          )}
+                          placeholder="∞"
+                          value={normalizedOptions.bostadsthlm?.maxListings ?? ""}
+                          onChange={(event) => handleMaxListingsChange(event.target.value)}
+                          min={1}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs uppercase text-gs-4">Max listings:</span>
+                        <input
+                          type="number"
+                          className={cn(
+                            "w-15 justify-self-end no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50 focus:border-primary",
+                            normalizedOptions.homeq?.maxListings != null && "border-primary",
+                          )}
+                          placeholder="∞"
+                          value={normalizedOptions.homeq?.maxListings ?? ""}
+                          onChange={(event) => handleHomeQMaxListingsChange(event.target.value)}
+                          min={1}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
