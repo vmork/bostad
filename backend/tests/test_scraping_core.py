@@ -3,7 +3,9 @@ from typing import Any
 import httpx
 import pytest
 
+from app.geo import GeoResolvedLocation
 from app.models import (
+    Coordinates,
     Listing,
     ListingFeatures,
     ListingSources,
@@ -94,6 +96,17 @@ class FailingFakeSource(FakeSource):
         raise RuntimeError("boom")
 
 
+class GeoFakeSource(FakeSource):
+    async def parse_listing(
+        self,
+        item: dict[str, Any],
+        client: httpx.AsyncClient,
+    ) -> Listing:
+        listing = await super().parse_listing(item, client)
+        listing.coords = Coordinates(lat=59.334, long=18.063)
+        return listing
+
+
 @pytest.mark.asyncio
 async def test_scrape_listings_with_options_emits_final_complete_event() -> None:
     events = []
@@ -124,3 +137,41 @@ async def test_scrape_listings_with_options_wraps_source_failures() -> None:
     assert len(result.errors) == 1
     assert result.errors[0].id == "bostadsthlm:source-error"
     assert result.source_stats[0].num_errors == 1
+
+
+@pytest.mark.asyncio
+async def test_scrape_listings_with_options_normalizes_location_from_geo_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.scraping.core.lookup_location",
+        lambda lat, long: GeoResolvedLocation(
+            district_id=321,
+            district_name="Södermalm",
+            municipality_id="0180",
+            municipality_name="Stockholm",
+        ),
+    )
+
+    result = await scrape_listings_with_options([GeoFakeSource()], ListingsSearchOptions())
+
+    assert len(result.listings) == 1
+    listing = result.listings[0]
+    assert listing.district_id == 321
+    assert listing.loc_municipality == "Stockholm"
+    assert listing.loc_district == "Södermalm"
+
+
+@pytest.mark.asyncio
+async def test_scrape_listings_with_options_keeps_source_location_when_geo_lookup_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.scraping.core.lookup_location", lambda lat, long: None)
+
+    result = await scrape_listings_with_options([GeoFakeSource()], ListingsSearchOptions())
+
+    assert len(result.listings) == 1
+    listing = result.listings[0]
+    assert listing.district_id is None
+    assert listing.loc_municipality == "Stockholm"
+    assert listing.loc_district == "Sodermalm"

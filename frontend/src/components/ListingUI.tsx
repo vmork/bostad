@@ -3,6 +3,7 @@ import { UserRoundIcon, Clock3Icon, InfoIcon, PlusIcon } from "lucide-react";
 import { formatDuration, numberWithSuffix } from "../lib/utils";
 import { Pill } from "./generic/Pill";
 import { memo } from "react";
+import { ListingLocationPreview } from "./ListingLocationPreview";
 
 function rangeExists(range: Range | null | undefined): range is Partial<Range> {
   return range?.min !== undefined || range?.max !== undefined;
@@ -109,9 +110,9 @@ const ListingUI = memo(function ListingUI({
           <span className="text-xs text-gs-3">({sourceName})</span>
         </div>
         {/* location */}
-        <span className="col-span-2 row-start-2 min-w-0 truncate sm:col-span-1 sm:col-start-2 sm:row-start-1">
-          {lg.locMunicipality} - {lg.locDistrict}
-        </span>
+        <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+          <ListingLocationPreview listing={lg} />
+        </div>
         {/* recency */}
         {timeSincePost !== null && (
           <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-sm text-gs-3 sm:col-start-3 sm:row-start-1">

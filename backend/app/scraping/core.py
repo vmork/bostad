@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from app.geo import lookup_district
+from app.geo import lookup_location
 from app.models import (
     AllListingsResponse,
     Listing,
@@ -75,9 +75,15 @@ async def _parse_listing_task(
     try:
         async with semaphore:
             listing = await source.parse_listing(item, client)
-        # Assign district via point-in-polygon lookup
+        # Normalize location fields from canonical geometry when coords land inside
+        # known polygons. Keep source strings as a fallback outside that coverage.
         if listing.coords is not None:
-            listing.district_id = lookup_district(listing.coords.lat, listing.coords.long)
+            resolved_location = lookup_location(listing.coords.lat, listing.coords.long)
+            if resolved_location is not None:
+                listing.district_id = resolved_location.district_id
+                if resolved_location.municipality_name is not None:
+                    listing.loc_municipality = resolved_location.municipality_name
+                listing.loc_district = resolved_location.district_name
         return index, listing, None
     except (ValidationError, Exception) as error:  # noqa: BLE001
         source_local_id = source.get_listing_id(item)

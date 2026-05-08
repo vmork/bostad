@@ -10,6 +10,7 @@ import { groupNames, keyConfig } from "../lib/keyConfig";
 import { cn } from "../lib/utils";
 import { Button } from "./generic/Button";
 import { Dropdown } from "./generic/Dropdown";
+import { Input } from "./generic/Input";
 import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
 import { MultiSelect } from "./generic/MultiSelect";
 import { Pill } from "./generic/Pill";
@@ -65,12 +66,9 @@ function RangeInputField({
   const inputWidth = Math.max(charCount + 2, 5);
 
   return (
-    <input
+    <Input
       type="number"
-      className={cn(
-        "focus:border-primary no-spinner rounded-md pl-1.5 pr-1 py-1.5 text-xs text-gs-4 border border-gs-3/50",
-        value != null && "border-primary",
-      )}
+      active={value != null}
       style={{ width: `${inputWidth}ch` }}
       min={isFinite(filter.stats.absMin) ? filter.stats.absMin : undefined}
       max={isFinite(filter.stats.absMax) ? filter.stats.absMax : undefined}
@@ -182,6 +180,11 @@ function SetFilterRow({
   onFilterChange: (updatedFilter: Filter<Listing>) => void;
 }) {
   const numSelected = filter.state.included.length;
+  const firstSelectedLabel =
+    numSelected > 0
+      ? filter.def.getOptionLabel?.(filter.state.included[0]) ?? String(filter.state.included[0])
+      : null;
+
   return (
     <Dropdown.Submenu title={filter.def.name} preferredSide="right">
       <Dropdown.SubmenuTrigger asChild>
@@ -195,7 +198,7 @@ function SetFilterRow({
           <div className="flex items-center gap-1">
             {numSelected > 0 && (
               <Pill type="primary" className="text-xs">
-                {`${filter.state.included[0]}` + (numSelected > 1 ? ` + ${numSelected - 1}` : ``)}
+                {`${firstSelectedLabel}` + (numSelected > 1 ? ` + ${numSelected - 1}` : ``)}
               </Pill>
             )}
             <ChevronRightIcon className="h-4 w-4 shrink-0 text-gs-3/70" />
@@ -214,7 +217,10 @@ function SetFilterRow({
             });
           }}
           keyFn={(option) => option}
-          displayFn={(option) => `${String(option)} (${filter.stats.optionCounts.get(option) ?? 0})`}
+          displayFn={(option) => {
+            const label = filter.def.getOptionLabel?.(option) ?? String(option);
+            return `${label} (${filter.stats.optionCounts.get(option) ?? 0})`;
+          }}
         />
       </Dropdown.SubmenuContent>
     </Dropdown.Submenu>

@@ -7,13 +7,14 @@ from urllib.parse import urljoin
 import httpx
 
 from app.models import (
+    ApartmentType,
     Coordinates,
     DateRange,
     HomeQSearchOptions,
     Listing,
     ListingFeatures,
-    ListingSourceStats,
     ListingSources,
+    ListingSourceStats,
     ListingsSearchOptions,
     Range,
     TenantRequirements,
@@ -24,6 +25,7 @@ from app.scraping.scrape_utils import (
     build_source_scoped_id,
     dedupe_keep_order,
     parse_iso_datetime,
+    parse_optional_int,
 )
 from app.scraping.types import ListingSource
 
@@ -40,9 +42,16 @@ STOCKHOLM_COUNTY = "stockholms län"
 SEARCH_PAGE_SIZE = 1000
 LISTINGS_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
 DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+DETAIL_FETCH_CONCURRENCY = 1
 DETAIL_REQUESTS_PER_MINUTE = 100
 DETAIL_REQUEST_INTERVAL_SECONDS = 60.0 / DETAIL_REQUESTS_PER_MINUTE
-DETAIL_RATE_LIMIT_COOLDOWN_SECONDS = 65.0
+DETAIL_REQUEST_BURST_CAPACITY = 1.0
+DETAIL_TOKEN_EPSILON = 1e-9
+DETAIL_RATE_LIMIT_COOLDOWN_SECONDS = 10.0
+DETAIL_RATE_LIMIT_MIN_REQUESTS_PER_MINUTE = 70.0
+DETAIL_RATE_LIMIT_DECREASE_FACTOR = 0.85
+DETAIL_RATE_LIMIT_RECOVERY_STEP = 5.0
+DETAIL_RATE_LIMIT_RECOVERY_SUCCESSES = 25
 DETAIL_MAX_FETCH_ATTEMPTS = 3
 
 DEFAULT_HEADERS = {
@@ -109,7 +118,7 @@ def _has_project_ranges(item: dict[str, Any]) -> bool:
     return rent_range is not None and rent_range.min is not None
 
 
-def _infer_apartment_type(detail: dict[str, Any]) -> str:
+def _infer_apartment_type(detail: dict[str, Any]) -> ApartmentType:
     if detail.get("is_student"):
         return "student"
     if detail.get("is_youth"):
@@ -163,19 +172,125 @@ def _image_urls_from_media(items: Any) -> list[str] | None:
     return urls or None
 
 
+class _AdaptiveTokenBucket:
+    """Pace HomeQ detail requests and step down after observed rate limits."""
+
+    def __init__(
+        self,
+        *,
+        rate_per_minute: float,
+        capacity: float,
+        min_rate_per_minute: float,
+    ) -> None:
+        self._base_rate_per_minute = rate_per_minute
+        self._current_rate_per_minute = rate_per_minute
+        self._min_rate_per_minute = min_rate_per_minute
+        self._capacity = capacity
+        self._tokens = capacity
+        self._updated_at = 0.0
+        self._blocked_until = 0.0
+        self._successful_requests_since_rate_limit = 0
+        self._lock = asyncio.Lock()
+
+    @property
+    def current_rate_per_minute(self) -> float:
+        return self._current_rate_per_minute
+
+    def _refill(self, now: float) -> None:
+        if self._updated_at == 0.0:
+            self._updated_at = now
+            return
+
+        elapsed = max(0.0, now - self._updated_at)
+        if elapsed <= 0:
+            return
+
+        self._tokens = min(
+            self._capacity,
+            self._tokens + elapsed * (self._current_rate_per_minute / 60.0),
+        )
+        if self._capacity - self._tokens <= DETAIL_TOKEN_EPSILON:
+            self._tokens = self._capacity
+        self._updated_at = now
+
+    async def acquire(
+        self,
+        *,
+        monotonic: callable,
+        sleep: callable,
+    ) -> None:
+        async with self._lock:
+            while True:
+                now = monotonic()
+                self._refill(now)
+
+                if now < self._blocked_until:
+                    await sleep(self._blocked_until - now)
+                    continue
+
+                if self._tokens >= 1.0 - DETAIL_TOKEN_EPSILON:
+                    self._tokens = max(0.0, self._tokens - 1.0)
+                    self._updated_at = now
+                    return
+
+                rate_per_second = self._current_rate_per_minute / 60.0
+                wait_seconds = (1.0 - self._tokens) / rate_per_second
+                if wait_seconds <= DETAIL_TOKEN_EPSILON:
+                    self._tokens = 1.0
+                    continue
+                await sleep(wait_seconds)
+
+    async def mark_rate_limited(
+        self,
+        *,
+        monotonic: callable,
+        cooldown_seconds: float,
+    ) -> float:
+        async with self._lock:
+            now = monotonic()
+            self._refill(now)
+            self._current_rate_per_minute = max(
+                self._min_rate_per_minute,
+                self._current_rate_per_minute * DETAIL_RATE_LIMIT_DECREASE_FACTOR,
+            )
+            self._successful_requests_since_rate_limit = 0
+            self._tokens = 0.0
+            self._updated_at = now
+            self._blocked_until = max(self._blocked_until, now + cooldown_seconds)
+            return self._current_rate_per_minute
+
+    async def record_success(self) -> float:
+        async with self._lock:
+            if self._current_rate_per_minute >= self._base_rate_per_minute:
+                return self._current_rate_per_minute
+
+            self._successful_requests_since_rate_limit += 1
+            if self._successful_requests_since_rate_limit < DETAIL_RATE_LIMIT_RECOVERY_SUCCESSES:
+                return self._current_rate_per_minute
+
+            self._current_rate_per_minute = min(
+                self._base_rate_per_minute,
+                self._current_rate_per_minute + DETAIL_RATE_LIMIT_RECOVERY_STEP,
+            )
+            self._successful_requests_since_rate_limit = 0
+            return self._current_rate_per_minute
+
+
 class HomeQSource(ListingSource):
     source_id: ListingSources = ListingSources.HOMEQ
     name = "HomeQ"
     global_url = HOMEQ_BASE_PATH
+    detail_fetch_concurrency = DETAIL_FETCH_CONCURRENCY
     # Keep a low worker count and a paced request cadence. HomeQ starts
     # returning 429s well before large fetches finish if detail requests are
     # allowed to burst.
-    detail_fetch_concurrency = 4
 
     def __init__(self) -> None:
-        self._detail_request_lock = asyncio.Lock()
-        self._next_detail_request_at = 0.0
-        self._detail_rate_limited_until = 0.0
+        self._detail_limiter = _AdaptiveTokenBucket(
+            rate_per_minute=DETAIL_REQUESTS_PER_MINUTE,
+            capacity=DETAIL_REQUEST_BURST_CAPACITY,
+            min_rate_per_minute=DETAIL_RATE_LIMIT_MIN_REQUESTS_PER_MINUTE,
+        )
 
     def _monotonic(self) -> float:
         return time.monotonic()
@@ -184,24 +299,7 @@ class HomeQSource(ListingSource):
         await asyncio.sleep(seconds)
 
     async def _wait_for_detail_slot(self) -> None:
-        async with self._detail_request_lock:
-            now = self._monotonic()
-            earliest_allowed_at = max(
-                self._next_detail_request_at,
-                self._detail_rate_limited_until,
-            )
-            wait_seconds = earliest_allowed_at - now
-            if wait_seconds > 0:
-                await self._sleep(wait_seconds)
-                now = self._monotonic()
-                earliest_allowed_at = max(
-                    self._next_detail_request_at,
-                    self._detail_rate_limited_until,
-                )
-
-            self._next_detail_request_at = (
-                max(now, earliest_allowed_at) + DETAIL_REQUEST_INTERVAL_SECONDS
-            )
+        await self._detail_limiter.acquire(monotonic=self._monotonic, sleep=self._sleep)
 
     def _parse_retry_after_seconds(self, retry_after: str | None) -> float | None:
         if retry_after is None:
@@ -241,25 +339,19 @@ class HomeQSource(ListingSource):
         description = self._describe_rate_limit(response) or "Too many requests"
         retry_after = self._parse_retry_after_seconds(response.headers.get("retry-after"))
         cooldown_seconds = max(retry_after or 0.0, DETAIL_RATE_LIMIT_COOLDOWN_SECONDS)
-
-        async with self._detail_request_lock:
-            limited_until = self._monotonic() + cooldown_seconds
-            self._detail_rate_limited_until = max(
-                self._detail_rate_limited_until,
-                limited_until,
-            )
-            self._next_detail_request_at = max(
-                self._next_detail_request_at,
-                self._detail_rate_limited_until,
-            )
+        current_rate = await self._detail_limiter.mark_rate_limited(
+            monotonic=self._monotonic,
+            cooldown_seconds=cooldown_seconds,
+        )
 
         logger.warning(
-            "[%s] HomeQ rate limited detail fetch for %s on attempt %s/%s, backing off for %.1f seconds: %s",
+            "[%s] HomeQ rate limited detail fetch for %s on attempt %s/%s, backing off for %.1f seconds and reducing detail rate to %.1f/min: %s",
             self.source_id,
             url,
             attempt,
             DETAIL_MAX_FETCH_ATTEMPTS,
             cooldown_seconds,
+            current_rate,
             description,
         )
 
@@ -274,11 +366,12 @@ class HomeQSource(ListingSource):
         source_options = self._get_options(options)
         client.headers.update(DEFAULT_HEADERS)
         logger.info(
-            "[%s] Starting scrape with options: max_listings=%s, county=%s, detail_rate=%s/min",
+            "[%s] Starting scrape with options: max_listings=%s, county=%s, detail_rate=%s/min, burst=%s",
             self.source_id,
             source_options.max_listings,
             STOCKHOLM_COUNTY,
             DETAIL_REQUESTS_PER_MINUTE,
+            DETAIL_REQUEST_BURST_CAPACITY,
         )
 
     def infer_logged_in(self, items: list[dict[str, Any]]) -> bool | None:
@@ -407,6 +500,7 @@ class HomeQSource(ListingSource):
             payload = response.json()
             if not isinstance(payload, dict):
                 raise ListingParseException(f"Unexpected payload from {url}")
+            await self._detail_limiter.record_success()
             return payload
 
         raise ListingParseException(f"Failed to fetch {url}: exhausted retries")
@@ -514,10 +608,9 @@ class HomeQSource(ListingSource):
         media: dict[str, Any],
     ) -> Listing:
         source_local_id = self.get_listing_id(item)
-        range_information = (
-            detail.get("range_information")
-            if isinstance(detail.get("range_information"), dict)
-            else {}
+        raw_range_information = detail.get("range_information")
+        range_information: dict[str, Any] = (
+            raw_range_information if isinstance(raw_range_information, dict) else {}
         )
         rent_range = _parse_range(range_information.get("rent"))
         area_range = _parse_range(range_information.get("area"))
@@ -535,11 +628,8 @@ class HomeQSource(ListingSource):
                 f"Missing required HomeQ project ranges for {source_local_id}"
             )
 
-        location = (
-            detail.get("project_location")
-            if isinstance(detail.get("project_location"), dict)
-            else {}
-        )
+        raw_location = detail.get("project_location")
+        location: dict[str, Any] = raw_location if isinstance(raw_location, dict) else {}
         lat = _parse_float(location.get("latitude"))
         lon = _parse_float(location.get("longitude"))
         coords = (
@@ -555,10 +645,9 @@ class HomeQSource(ListingSource):
         )
 
         image_urls = _image_urls_from_media(media.get("project_images"))
-        freetext_entries = (
-            detail.get("freetext_entries")
-            if isinstance(detail.get("freetext_entries"), list)
-            else []
+        raw_freetext_entries = detail.get("freetext_entries")
+        freetext_entries: list[Any] = (
+            raw_freetext_entries if isinstance(raw_freetext_entries, list) else []
         )
         freetext_parts = [detail.get("info_header"), detail.get("info_description")]
         freetext_parts.extend(
@@ -597,9 +686,7 @@ class HomeQSource(ListingSource):
             else None,
             image_urls=image_urls,
             free_text=_merge_text_parts(freetext_parts),
-            num_apartments=int(item.get("active_ads"))
-            if isinstance(item.get("active_ads"), int)
-            else None,
+            num_apartments=parse_optional_int(item.get("active_ads")),
             rent_range=rent_range,
             area_sqm_range=area_range,
             floor_range=floor_range,
@@ -612,7 +699,8 @@ class HomeQSource(ListingSource):
     ) -> Listing:
         listing_type = item.get("type")
         if listing_type == "individual":
-            references = item.get("references") if isinstance(item.get("references"), dict) else {}
+            raw_references = item.get("references")
+            references: dict[str, Any] = raw_references if isinstance(raw_references, dict) else {}
             object_id = references.get("object_ad")
             if object_id is None:
                 raise ListingParseException(
@@ -629,7 +717,8 @@ class HomeQSource(ListingSource):
             return self._parse_individual_listing(item, detail)
 
         if listing_type == "project":
-            references = item.get("references") if isinstance(item.get("references"), dict) else {}
+            raw_references = item.get("references")
+            references: dict[str, Any] = raw_references if isinstance(raw_references, dict) else {}
             project_id = references.get("project") or item.get("id")
             if project_id is None:
                 raise ListingParseException(

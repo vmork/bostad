@@ -41,14 +41,14 @@ function SourceStatsPanel({ sourceStats }: { sourceStats: ListingSourceStats[] }
           href={stat.globalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-md border border-gs-3/50 bg-gs-0/70 px-3 py-2 text-sm text-dark"
+          className="rounded-md border border-gs-3/50 bg-gs-1 px-3 py-2 text-xs text-dark"
         >
-          <span className="font-medium">{stat.name}</span>
-          <span className="ml-2 text-gs-3">
-            {stat.loggedIn == null ? "Login unknown" : stat.loggedIn ? "Logged in" : "Logged out"}
+          <span className="text-xs font-medium">{stat.name}:</span>
+          <span className="ml-2 text-gs-3">{stat.numListings ?? 0} listings</span>
+          <span className="ml-1 text-gs-3">· {stat.numErrors ?? 0} errors</span>
+          <span className="ml-1 text-gs-3">
+            · {stat.loggedIn == null ? "Login unknown" : stat.loggedIn ? "Logged in" : "Logged out"}
           </span>
-          <span className="ml-2 text-gs-3">· {stat.numListings ?? 0} listings</span>
-          <span className="ml-2 text-gs-3">· {stat.numErrors ?? 0} errors</span>
         </a>
       ))}
     </div>
@@ -177,21 +177,32 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background px-6 py-8 sm:px-8">
       <div className="mx-auto max-w-4xl space-y-6">
-        {/* Header section */}
-        <div className="flex flex-col gap-3 mb-3">
-          <div className="">
-            <h1
-              className={cn(
-                "text-2xl font-semibold text-dark grow",
-                displayedListingsAreStale && "opacity-50",
-              )}
-            >
-              {listingsQuery.hasCachedData
-                ? `Showing ${displayedListings.length}/${listings.length} listings (${numApartments} apts.)`
-                : "No listings yet"}
-            </h1>
+        {/* Before listings */}
+        <div className="mb-0">
+          {/* Header */}
+          <h1
+            className={cn(
+              "text-2xl font-semibold text-dark grow",
+              displayedListingsAreStale && "opacity-50",
+            )}
+          >
+            {listingsQuery.hasCachedData
+              ? `Showing ${displayedListings.length}/${listings.length} listings (${numApartments} apts.)`
+              : "No listings yet"}
+          </h1>
+
+          {/* Row 1: Refetch button and update info */}
+          <div className="flex items-center justify-between gap-3 mt-2">
+            <div className="">
+              <RefetchButton
+                hasCachedData={listingsQuery.hasCachedData}
+                isFetching={listingsQuery.isFetching}
+                progress={listingsQuery.progress}
+                onFetch={listingsQuery.startListingsStream}
+              />
+            </div>
             {listingsQuery.updatedAt && (
-              <p className="text-sm text-gs-3 mt-2">
+              <p className="text-sm text-gs-3 mt-1">
                 Updated {formatUpdatedAt(listingsQuery.updatedAt)}
                 {(listingsQuery.refreshDelta.added > 0 ||
                   listingsQuery.refreshDelta.removed > 0) && (
@@ -199,9 +210,6 @@ export default function App() {
                     {listingsQuery.refreshDelta.added > 0 && (
                       <> · Added {listingsQuery.refreshDelta.added}</>
                     )}
-                    {listingsQuery.refreshDelta.added > 0 &&
-                      listingsQuery.refreshDelta.removed > 0 &&
-                      " · "}
                     {listingsQuery.refreshDelta.removed > 0 && (
                       <> · Removed {listingsQuery.refreshDelta.removed}</>
                     )}
@@ -209,36 +217,42 @@ export default function App() {
                 )}
               </p>
             )}
-            <div className="mt-2">
-              <SourceStatsPanel sourceStats={listingsQuery.sourceStats} />
-            </div>
           </div>
 
           {/* Blocking fetch error */}
           {listingsQuery.fetchError && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+            <div className="rounded-lg border border-red-300 bg-red-50 p-4 mt-2">
               <h2 className="mb-2 text-lg font-semibold text-red-900">Could not fetch listings</h2>
               <p className="text-sm text-red-700">{listingsQuery.fetchError}</p>
             </div>
           )}
-          {/* List of non-blocking parse errors */}
+
+          {/* Row 2: Source stats */}
+          <div className="mt-2">
+            <div className="font-medium pb-0.5">Sources:</div>
+            <div className="ml-2">
+              <SourceStatsPanel sourceStats={listingsQuery.sourceStats} />
+            </div>
+          </div>
+
+          {/* Row 3: List of non-blocking parse errors */}
           {errors.length > 0 && (
-            <ParseErrorsPanel errors={errors} sourceNameById={sourceNameById} />
+            <div className="mt-2">
+              <ParseErrorsPanel errors={errors} sourceNameById={sourceNameById} />
+            </div>
           )}
+        </div>
 
-          {/* Controls */}
+        {/* Divider */}
+        <div className="border-t border-gs-2 my-5" />
+
+        {/* Controls + list */}
+        <div className="space-y-2">
+          {/* Filtering and sorting controls */}
           <div className="flex gap-3 flex-wrap">
-            <RefetchButton
-              hasCachedData={listingsQuery.hasCachedData}
-              isFetching={listingsQuery.isFetching}
-              progress={listingsQuery.progress}
-              onFetch={listingsQuery.startListingsStream}
-            />
-
             {listingsQuery.hasCachedData && (
               <>
                 <FilterDropdown filters={displayFilters} setFilters={setFilters} />
-
                 <Button
                   size="large"
                   className={cn(
@@ -249,7 +263,6 @@ export default function App() {
                   <MapIcon className="w-4 h-4 mr-1" />
                   Map
                 </Button>
-
                 <SortDropdown
                   sortEntries={sortEntries}
                   setSortEntries={setSortEntries}
@@ -258,14 +271,14 @@ export default function App() {
               </>
             )}
           </div>
-        </div>
 
-        {/* Main listings section */}
-        <ListingsList
-          filteredListings={deferredDisplayedListings}
-          newListingIds={listingsQuery.newListingIds}
-          sourceNameById={sourceNameById}
-        />
+          {/* Listings list */}
+          <ListingsList
+            filteredListings={deferredDisplayedListings}
+            newListingIds={listingsQuery.newListingIds}
+            sourceNameById={sourceNameById}
+          />
+        </div>
       </div>
 
       <MapFilterModal

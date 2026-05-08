@@ -1,30 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Listing } from "../api/models";
 import { applyFiltersToList, type Filter, type SetFilter } from "../lib/filterSort";
-import type { AreaHierarchy, DistrictCollection, RegionCollection } from "../lib/geoTypes";
+import { getCachedGeoData, loadGeoData } from "../lib/geoData";
 import { Modal } from "./generic/Modal";
 import { Button } from "./generic/Button";
 import { AreaMap } from "./AreaMap";
 import { AreaSidebar } from "./AreaSidebar";
-
-// -- Geo data fetching (cached after first load) --
-
-let geoCache: {
-  regions: RegionCollection;
-  districts: DistrictCollection;
-  hierarchy: AreaHierarchy;
-} | null = null;
-
-async function fetchGeoData() {
-  if (geoCache) return geoCache;
-  const [regions, districts, hierarchy] = await Promise.all([
-    fetch("/geo/kommuner.geojson").then((r) => r.json()) as Promise<RegionCollection>,
-    fetch("/geo/stadsdelar.geojson").then((r) => r.json()) as Promise<DistrictCollection>,
-    fetch("/geo/hierarchy.json").then((r) => r.json()) as Promise<AreaHierarchy>,
-  ]);
-  geoCache = { regions, districts, hierarchy };
-  return geoCache;
-}
 
 // -- Props --
 
@@ -45,14 +26,14 @@ export function MapFilterModal({
   setFilters,
   listings,
 }: MapFilterModalProps) {
-  const [geoData, setGeoData] = useState(geoCache);
+  const [geoData, setGeoData] = useState(getCachedGeoData());
   const [hoveredDistrictId, setHoveredDistrictId] = useState<number | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
   // Fetch geo data lazily on first open
   useEffect(() => {
     if (!open || geoData) return;
-    fetchGeoData().then(setGeoData);
+    loadGeoData().then(setGeoData);
   }, [open, geoData]);
 
   // -- Filter state helpers --

@@ -1,4 +1,4 @@
-import type { Listing } from "../api/models";
+import type { Listing, ListingSources } from "../api/models";
 import {
   createBooleanFilter,
   createRangeFilter,
@@ -9,6 +9,7 @@ import {
   type KeyFn,
   type SortEntry,
 } from "./filterSort";
+import { sourceMetadataById } from "./sourceMetadata";
 
 type FilterGroups = "location" | "info" | "queuePosition" | "requirements" | "features";
 
@@ -134,6 +135,15 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     stepSize: 1,
     defaultState: { allowNull: true },
     group: "info",
+  },
+  source: {
+    type: "set",
+    id: "source",
+    name: "Source",
+    key: "source",
+    getOptionLabel: (source: ListingSources) => sourceMetadataById[source]?.name ?? source,
+    group: "info",
+    showInSort: false,
   },
 
   // --- Queue position

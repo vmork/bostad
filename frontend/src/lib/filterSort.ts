@@ -25,6 +25,7 @@ export type SetFilterDef<T, V = any> = {
   id: string;
   name: string;
   key: KeyFn<T, V>;
+  getOptionLabel?: (value: V) => string;
   group?: string;
   defaultState?: Partial<SetFilterState<V>>;
 };

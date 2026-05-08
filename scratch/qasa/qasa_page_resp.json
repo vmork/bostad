@@ -1,0 +1,785 @@
+{
+    "data": {
+        "home": {
+            "id": "1341751",
+            "rentalType": "long_term",
+            "status": "normal",
+            "homeTemplates": [
+                {
+                    "id": "596231",
+                    "__typename": "HomeTemplate",
+                    "apartmentNumber": "",
+                    "squareMeters": 30,
+                    "roomCount": 1.0,
+                    "floor": null,
+                    "rent": 8967,
+                    "type": "apartment",
+                    "location": {
+                        "id": "1992826",
+                        "countryCode": "SE",
+                        "__typename": "Location"
+                    },
+                    "homeLayoutPictures": [],
+                    "description": "Fräsch lägenhet i bra skick i lugnt och fint villaområde. \nLägenheten är en separat del av en villa och har egen ingång mot gatan. Tillgång till liten uteveranda och trädgårdsdel, möjlighet att grilla. Även möjligt med lite plats i förråd och tillgång till bastu. Fri parkering på gatan.\n9500 SEK/månad för allt, inklusive snabbt Internet och el. \nEn månads deposition.\nCa 15 minuter gångväg till T-bana Hässleby Gård, alt 5 minuter till buss mot Vällingby.\nNära till gym, ICA Kvantum + Lidl, samt Riddersviks herrgård med trevlig restaurang.\nÄven nära till flera bad, bl a Hässelby Strandbad, Lövstabadet och Maltesholmsbadet. \nSöker problemfri hyresgäst, utan betalningsanmärkningar, drog- eller alkoholproblem, med stabil ekonomi.",
+                    "traits": [
+                        {
+                            "id": "9884085",
+                            "detail": null,
+                            "type": "furniture",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884089",
+                            "detail": null,
+                            "type": "fridge",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884098",
+                            "detail": null,
+                            "type": "freezer",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884099",
+                            "detail": null,
+                            "type": "oven",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884100",
+                            "detail": null,
+                            "type": "stove",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884101",
+                            "detail": null,
+                            "type": "dish_washer",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884182",
+                            "detail": null,
+                            "type": "shower",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884183",
+                            "detail": null,
+                            "type": "toilet",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884184",
+                            "detail": null,
+                            "type": "washing_machine",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "9884188",
+                            "detail": null,
+                            "type": "internet",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "10442314",
+                            "detail": null,
+                            "type": "microwave_oven",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "11229142",
+                            "detail": null,
+                            "type": "storage",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "21663432",
+                            "detail": null,
+                            "type": "kitchenette",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "21663445",
+                            "detail": null,
+                            "type": "patio",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "21663446",
+                            "detail": null,
+                            "type": "communal_sauna",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "21663450",
+                            "detail": null,
+                            "type": "parking",
+                            "__typename": "Trait"
+                        },
+                        {
+                            "id": "23446857",
+                            "detail": "pets_allowed",
+                            "type": "pets",
+                            "__typename": "Trait"
+                        }
+                    ]
+                }
+            ],
+            "location": {
+                "postalCode": "165 70",
+                "locality": "Hässelby",
+                "country": "Sverige",
+                "__typename": "Location",
+                "id": "3371157",
+                "latitude": 59.3752629,
+                "longitude": 17.8246468,
+                "route": "Edelundavägen",
+                "streetNumber": null,
+                "pointsOfInterest": {
+                    "nodes": [
+                        {
+                            "category": "bus_stop",
+                            "distance": 252.0,
+                            "latitude": 59.377464,
+                            "longitude": 17.825686,
+                            "name": "Smedshagsvägen",
+                            "metadata": {
+                                "lines": [
+                                    "541",
+                                    "518",
+                                    "543"
+                                ],
+                                "transport_system": "sl.se"
+                            },
+                            "__typename": "PointOfInterest"
+                        },
+                        {
+                            "category": "bus_stop",
+                            "distance": 340.0,
+                            "latitude": 59.37671,
+                            "longitude": 17.829903,
+                            "name": "Toppklockegränd",
+                            "metadata": {
+                                "lines": [
+                                    "541",
+                                    "518",
+                                    "543"
+                                ],
+                                "transport_system": "sl.se"
+                            },
+                            "__typename": "PointOfInterest"
+                        },
+                        {
+                            "category": "bus_stop",
+                            "distance": 504.0,
+                            "latitude": 59.373118,
+                            "longitude": 17.816838,
+                            "name": "Loviselundsvägen",
+                            "metadata": {
+                                "lines": [
+                                    "198",
+                                    "908",
+                                    "119"
+                                ],
+                                "transport_system": "sl.se"
+                            },
+                            "__typename": "PointOfInterest"
+                        },
+                        {
+                            "category": "bus_stop",
+                            "distance": 521.0,
+                            "latitude": 59.376054,
+                            "longitude": 17.833672,
+                            "name": "Rädisvägen",
+                            "metadata": {
+                                "lines": [
+                                    "119",
+                                    "541",
+                                    "518",
+                                    "543"
+                                ],
+                                "transport_system": "sl.se"
+                            },
+                            "__typename": "PointOfInterest"
+                        },
+                        {
+                            "category": "bus_stop",
+                            "distance": 548.0,
+                            "latitude": 59.376283,
+                            "longitude": 17.815209,
+                            "name": "Riddersviksvägen",
+                            "metadata": {
+                                "lines": [
+                                    "198",
+                                    "119"
+                                ],
+                                "transport_system": "sl.se"
+                            },
+                            "__typename": "PointOfInterest"
+                        }
+                    ],
+                    "__typename": "PointOfInterestConnection"
+                },
+                "countryCode": "SE"
+            },
+            "floor": null,
+            "buildingFloors": null,
+            "shared": false,
+            "traits": [
+                {
+                    "id": "26263932",
+                    "type": "pets",
+                    "detail": "pets_negotiable",
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263773",
+                    "type": "furniture",
+                    "detail": "fully_furnished",
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263774",
+                    "type": "fridge",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263775",
+                    "type": "freezer",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263776",
+                    "type": "oven",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263777",
+                    "type": "stove",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263778",
+                    "type": "dish_washer",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263779",
+                    "type": "shower",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263780",
+                    "type": "toilet",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263781",
+                    "type": "washing_machine",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263782",
+                    "type": "internet",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263783",
+                    "type": "microwave_oven",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263784",
+                    "type": "storage",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263785",
+                    "type": "kitchenette",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263786",
+                    "type": "patio",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263787",
+                    "type": "communal_sauna",
+                    "detail": null,
+                    "__typename": "Trait"
+                },
+                {
+                    "id": "26263788",
+                    "type": "parking",
+                    "detail": null,
+                    "__typename": "Trait"
+                }
+            ],
+            "type": "apartment",
+            "tenureType": "proprietary",
+            "squareMeters": 30,
+            "roomCount": 1.0,
+            "duration": {
+                "id": "1829737",
+                "startAsap": false,
+                "startOptimal": "2026-04-28T00:00:00Z",
+                "endUfn": true,
+                "endOptimal": null,
+                "__typename": "Duration",
+                "possibilityOfExtension": false,
+                "durationPreference": null
+            },
+            "ownHome": true,
+            "buildYear": null,
+            "bathroomRenovationYear": 2018,
+            "kitchenRenovationYear": 2018,
+            "energyClass": null,
+            "description": "Fräsch lägenhet i bra skick i lugnt och fint villaområde. \nLägenheten är en separat del av en villa och har egen ingång mot gatan. Tillgång till liten uteveranda och trädgårdsdel, möjlighet att grilla. Även möjligt med lite plats i förråd och tillgång till bastu. Fri parkering på gatan.\n9500 SEK/månad för allt, inklusive snabbt Internet och el. \nEn månads deposition.\nCa 15 minuter gångväg till T-bana Hässleby Gård, alt 5 minuter till buss mot Vällingby.\nNära till gym, ICA Kvantum + Lidl, samt Riddersviks herrgård med trevlig restaurang.\nÄven nära till flera bad, bl a Hässelby Strandbad, Lövstabadet och Maltesholmsbadet. \nSöker problemfri hyresgäst, utan betalningsanmärkningar, drog- eller alkoholproblem, med stabil ekonomi.",
+            "uploads": [
+                {
+                    "id": "19532711",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/1cda5e7854482d97fc7c4bd510468fbeacd40541fc3625f2b98b4992d54f1878.jpg",
+                    "metadata": {
+                        "primary": true,
+                        "order": 1,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532706",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/6455747a076b9b49bfc02b96d14609c827edec04bbfe7e38f3730b9e28a01d41.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 2,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532708",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/f069b7716b3d743a555eb62c6e5ee0d5aca55beba1c335b54a0779fc33e9a315.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 3,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532714",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/9532787d7c75705d86593137fa4c21580b53ca6cb9c9838f7847af900151a258.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 4,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532709",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/618ffa540c7a3fc3b8de81d646ff25e280978abaf500f4eaafbda9a3d61cbfdb.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 5,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532703",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/a5a13aa5c14e3a14ceb9c35d2ee3a7760aeb40ac63eb0cc38e1d928da9d24a73.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 6,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532705",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/42719aae3830023a54983ac6c6b3793fac3a2c2febc2cc7226a9acef7de7bb4c.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 7,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532704",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/53fb04121d2322b0e2162f1cfcde7f8789e0b24c6eaf3b48e31aacd57684fcb9.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 8,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532712",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/dcd4dbc81ff23d875a76af81233a6a46719b44608da70cd8aca71d3bd72fe727.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 9,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532717",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/5439af494b000bcc9909a3296b8ff5b7b29a98770f332769178d7bfb8911505a.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 10,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532715",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/cd1d61d9d1db781505624b1b806e8c0709cbd50b2cb9636c8e07f1e66899df5d.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 11,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532702",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/f725e037f5a0d916caa99447c2cf58b7081c46cfdd50ad3b60acb9a8d9038e7e.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 12,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532707",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/6490c0c364221630cb2a3af42bcb0f9507f64972dae702fbded3cfe828c3e51b.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 13,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532716",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/9b2f77aaa4c450b1b8803befd9b680bf67e38fb23558bb2d7815f980d238182b.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 14,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532713",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/e84da241af777a33a5bec564e2e1b9f49567fd3ba45c9fe179068e5e6813ab79.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 15,
+                        "__typename": "UploadMetadata"
+                    }
+                },
+                {
+                    "id": "19532710",
+                    "type": "home_picture",
+                    "__typename": "Upload",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/4de665c75782ffc95176bb245fd2efee27c0da1eea0a1996b3db4a3e656d9bad.jpg",
+                    "metadata": {
+                        "primary": false,
+                        "order": 16,
+                        "__typename": "UploadMetadata"
+                    }
+                }
+            ],
+            "tenantCount": 1,
+            "rent": 8967,
+            "recommendedRentNew": 8130,
+            "electricityFee": {
+                "monthlyFee": 0,
+                "paymentPlan": "included_in_rent",
+                "__typename": "ElectricityFee"
+            },
+            "firsthand": false,
+            "shortcut": null,
+            "__typename": "Home",
+            "landlordUnitId": null,
+            "origin": null,
+            "market": {
+                "id": "sweden",
+                "name": "sweden",
+                "__typename": "Market"
+            },
+            "user": {
+                "uid": "endvzwu2",
+                "firstName": "Karl",
+                "companyName": null,
+                "professional": false,
+                "mainPlatform": "blocket",
+                "proAgent": false,
+                "currentIdentification": {
+                    "id": "3466952",
+                    "identityConfirmed": true,
+                    "identityConfirmedAt": "2026-04-22T09:36:10Z",
+                    "__typename": "Identification"
+                },
+                "premium": false,
+                "profilePicture": {
+                    "id": "4492497",
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/d779e72336b4e0a2d737b3087283917d30ccc4b0ef5ae2efb42ea82fa9ea9193.png",
+                    "__typename": "Upload"
+                },
+                "landlordApplicationResponseRate": 0.84,
+                "landlordApplicationResponseTimeHours": 12,
+                "bio": {
+                    "uid": "endvzwu2",
+                    "intro": "Jobbar som Export Business Development Manager på ett svenskt teknikbolag och ansvarar för vår affärsutveckling i 6 olika regioner i världen. Stabilt jobb och bra lön. Älskar all sport.",
+                    "__typename": "UserBio"
+                },
+                "__typename": "User"
+            },
+            "matterportEmbedUrl": null,
+            "external": false,
+            "publishedAt": "2026-04-06T10:01:17Z",
+            "favoriteMarkedByUser": false,
+            "displayStreetNumber": false,
+            "title": null,
+            "landlord": {
+                "uid": "endvzwu2",
+                "currentIdentification": {
+                    "id": "3466952",
+                    "identityConfirmed": true,
+                    "identityConfirmedAt": "2026-04-22T09:36:10Z",
+                    "__typename": "Identification"
+                },
+                "landlordApplicationResponseRate": 0.84,
+                "landlordApplicationResponseTimeHours": 12,
+                "profilePicture": {
+                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/d779e72336b4e0a2d737b3087283917d30ccc4b0ef5ae2efb42ea82fa9ea9193.png",
+                    "__typename": "Upload"
+                },
+                "firstName": "Karl",
+                "professional": false,
+                "premium": false,
+                "companyName": null,
+                "contactLocation": null,
+                "mainPlatform": "blocket",
+                "proAgent": false,
+                "bio": {
+                    "uid": "endvzwu2",
+                    "intro": "Jobbar som Export Business Development Manager på ett svenskt teknikbolag och ansvarar för vår affärsutveckling i 6 olika regioner i världen. Stabilt jobb och bra lön. Älskar all sport.",
+                    "__typename": "UserBio"
+                },
+                "seenAt": "2026-04-25T13:40:00Z",
+                "createdAt": "2019-09-08T10:10:05Z",
+                "__typename": "User"
+            },
+            "externalInfoPage": null,
+            "externalApplicationUrl": null,
+            "externalEmail": null,
+            "insurance": "insurance_landlord",
+            "insuranceCost": 0,
+            "qasaGuarantee": true,
+            "qasaGuaranteeCost": 0,
+            "descriptionBuilding": null,
+            "descriptionContract": null,
+            "descriptionFeatures": null,
+            "descriptionLayout": null,
+            "descriptionTransportation": null,
+            "translatedDescriptions": [
+                {
+                    "languageCode": "en",
+                    "description": "Fresh apartment in good condition in quiet and nice residential area. The apartment is a separate part of a villa and has its own entrance facing the street. Access to a small outdoor porch and garden area, opportunity to barbecue. Also possible with some space in the storage room and access to a sauna. Free parking on the street. 9500 SEK/month for everything, including fast Internet and electricity. One month's deposit. About a 15-minute walk to Hässleby Gård subway, or 5 minutes to the bus towards Vällingby. Close to gym, ICA Kvantum + Lidl, and Riddersviks manor with a nice restaurant. Also close to several beaches, such as Hässelby Strandbad, Lövstabadet, and Maltesholmsbadet. Looking for a trouble-free tenant, without payment remarks, drug or alcohol problems, with stable finances.",
+                    "__typename": "TranslatedDescription"
+                },
+                {
+                    "languageCode": "fi",
+                    "description": "Hyvässä kunnossa oleva raikas asunto rauhallisella ja hienolla asuinalueella. Asunto on erillinen osa huvilasta ja siinä on oma sisäänkäynti kadulle päin. Pääsy pienelle ulkoverannalle ja puutarha-alueelle, mahdollisuus grillata. Myös mahdollisuus hieman tilaa varastossa ja pääsy saunaan. Ilmainen pysäköinti kadulla. 9500 SEK/kuukausi kaikesta, mukaan lukien nopea internet ja sähkö. Yhden kuukauden takuu. Noin 15 minuutin kävelymatka Hässleby Gårdin metroasema, tai 5 minuuttia bussiin Vällingbyyn. Lähellä kuntosalia, ICA Kvantum + Lidl, sekä Riddersvikin kartanoa mukavalla ravintolalla. Myös lähellä useita uimapaikkoja, kuten Hässelbyn Rantakylpylä, Lövstabadet ja Maltesholmsbadet. Etsitään ongelmatonta vuokralaista, jolla ei ole maksuhäiriöitä, huume- tai alkoholiongelmia, ja jolla on vakaa talous.",
+                    "__typename": "TranslatedDescription"
+                },
+                {
+                    "languageCode": "nb",
+                    "description": "Frisk leilighet i god stand i rolig og fint boligområde. Leiligheten er en separat del av en villa og har egen inngang mot gaten. Tilgang til en liten uteveranda og hageområde, mulighet for å grille. Også mulig med litt plass i bod og tilgang til badstue. Gratis parkering på gaten. 9500 SEK/måned for alt, inkludert raskt internett og strøm. En måneds depositum. Ca 15 minutters gange til T-banen Hässleby Gård, eller 5 minutter til bussen mot Vällingby. Nær treningssenter, ICA Kvantum + Lidl, samt Riddersviks herregård med hyggelig restaurant. Også nær flere badeplasser, inkludert Hässelby Strandbad, Lövstabadet og Maltesholmsbadet. Søker problemfri leietaker, uten betalingsanmerkninger, rus- eller alkoholproblemer, med stabil økonomi.",
+                    "__typename": "TranslatedDescription"
+                }
+            ],
+            "housingAssociation": null,
+            "additionalCosts": [],
+            "tenantFees": {
+                "base": {
+                    "availability": "mandatory",
+                    "cost": {
+                        "factor": 0.0595,
+                        "total": 533,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "monthlyWaterFee": {
+                    "availability": "unavailable",
+                    "cost": {
+                        "isFree": true,
+                        "fixed": 0,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "monthlyElectricityFee": {
+                    "availability": "optional",
+                    "cost": {
+                        "isFree": true,
+                        "fixed": 0,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "monthlyHeatingFee": {
+                    "availability": "unavailable",
+                    "cost": {
+                        "isFree": true,
+                        "fixed": 0,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "__typename": "HomeTenantFees"
+            },
+            "heatingFee": null,
+            "waterFee": null,
+            "tenantBaseFee": 533,
+            "seniorHome": false,
+            "studentHome": false,
+            "corporateHome": false,
+            "property": null,
+            "adPaidAt": null,
+            "rentalRequirement": null,
+            "minTenantCount": null,
+            "maxTenantCount": null,
+            "minSquareMeters": null,
+            "maxSquareMeters": null,
+            "minRoomCount": null,
+            "maxRoomCount": null,
+            "minRent": null,
+            "maxRent": null,
+            "numberOfHomes": null,
+            "homeqDiscountAmount": null,
+            "homeqDiscountMonths": null,
+            "homeqDiscountPercent": null,
+            "finnishLandlordAssociation": false,
+            "affiliateCode": null,
+            "furnishedFlexible": false,
+            "landlordServices": {
+                "insurance": {
+                    "availability": "included",
+                    "cost": {
+                        "factor": 0.0,
+                        "isFree": true,
+                        "total": 0,
+                        "__typename": "Cost"
+                    },
+                    "isActive": true,
+                    "__typename": "Service"
+                },
+                "qasaGuarantee": {
+                    "availability": "included",
+                    "cost": {
+                        "factor": 0.0,
+                        "isFree": true,
+                        "total": 0,
+                        "__typename": "Cost"
+                    },
+                    "isActive": true,
+                    "__typename": "Service"
+                },
+                "__typename": "HomeLandlordServices"
+            },
+            "landlordFees": {
+                "base": {
+                    "availability": "unavailable",
+                    "cost": {
+                        "factor": 0.0,
+                        "total": 0,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "listingPublicationFee": {
+                    "availability": "unavailable",
+                    "cost": {
+                        "fixed": 0,
+                        "isIncludingVat": true,
+                        "isFree": true,
+                        "__typename": "Cost"
+                    },
+                    "__typename": "Fee"
+                },
+                "__typename": "HomeLandlordFees"
+            },
+            "pricingModel": {
+                "insuranceCostFactor": 0.0,
+                "qasaGuaranteeCostFactor": 0.0,
+                "tenantBaseFeeFactor": 0.0595,
+                "notCreditWorthyDepositMonths": 1,
+                "__typename": "PricingModel"
+            },
+            "houseRules": null,
+            "bedCount": null,
+            "bedroomCount": null,
+            "hasKitchen": true,
+            "toiletCount": null,
+            "responsibleForCleaning": null,
+            "cleaningFee": 0,
+            "currentCancellationPolicy": {
+                "policyName": "medium",
+                "partialRefundFactor": 0.5,
+                "partialRefundDays": 14,
+                "fullRefundDays": 30,
+                "__typename": "CancellationPolicy"
+            },
+            "currency": "SEK",
+            "applicationSortingType": null,
+            "applicationSelectionType": null,
+            "canBePublished": false,
+            "videos": [],
+            "marketDetails": null,
+            "homeqQuickApply": false
+        }
+    }
+}

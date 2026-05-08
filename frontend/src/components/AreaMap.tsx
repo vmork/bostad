@@ -7,11 +7,16 @@ import type {
   FillLayerSpecification,
   LineLayerSpecification,
   CircleLayerSpecification,
-  SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { Feature, FeatureCollection, Point } from "geojson";
 import type { Listing } from "../api/models";
 import type { DistrictCollection, RegionCollection } from "../lib/geoTypes";
+import {
+  AREA_LABEL_LAYOUT,
+  AREA_LABEL_PAINT,
+  BASEMAP_STYLE,
+  hideBasemapPlaceLabels,
+} from "../lib/mapTheme";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 // -- Constants --
@@ -28,17 +33,6 @@ const STOCKHOLM_CENTER = { longitude: 18.07, latitude: 59.33 };
 const DEFAULT_ZOOM = 9;
 const MIN_ZOOM = 8;
 const MAX_BOUNDS: LngLatBoundsLike = [14, 57, 22.5, 61.5]; // [west, south, east, north]
-
-// CartoDB Positron vector basemap (free, no API key)
-const BASEMAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
-
-// -- Basemap label hiding --
-// Hide built-in place/area name labels (we render our own from GeoJSON).
-// Road names, water names, and POI labels are kept.
-const HIDDEN_LABEL_PREFIXES = [
-  "place_",    // city, town, suburb, hamlet, village, country, state, continent
-  "poi_",      // stadium, park
-];
 
 // -- Layer IDs --
 
@@ -62,21 +56,6 @@ const S_DEFAULT = { fill: "#bfdbfe", fillOp: 0.06, stroke: "#5b6b80", strokeOp: 
 const S_SELECTED = { fill: "#60a5fa", fillOp: 0.24, stroke: "#2563eb", strokeOp: 0.9, w: 2 };
 const S_PARTIAL = { fill: "#93c5fd", fillOp: 0.16, stroke: "#3b82f6", strokeOp: 0.8, w: 2 };
 const S_HOVERED = { fill: "#60a5fa", fillOp: 0.34, stroke: "#1d4ed8", strokeOp: 0.95, w: 3 };
-
-// -- Area label styling --
-
-const AREA_LABEL_LAYOUT: SymbolLayerSpecification["layout"] = {
-  "text-field": ["get", "name"],
-  "text-size": ["interpolate", ["linear"], ["zoom"], 4, 8, 11, 11],
-  "text-anchor": "center",
-  "text-max-width": 7,
-};
-
-const AREA_LABEL_PAINT: SymbolLayerSpecification["paint"] = {
-  "text-color": "#3a4a5a",
-  "text-halo-color": "rgba(255,255,255,0.85)",
-  "text-halo-width": 1,
-};
 
 // -- Dot styling --
 
@@ -397,11 +376,7 @@ export function AreaMap({
   const onMapLoad = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
-    for (const layer of map.getStyle().layers) {
-      if (HIDDEN_LABEL_PREFIXES.some((p) => layer.id.startsWith(p))) {
-        map.setLayoutProperty(layer.id, "visibility", "none");
-      }
-    }
+    hideBasemapPlaceLabels(map);
   }, []);
 
   // Clear map hover when layer visibility switches

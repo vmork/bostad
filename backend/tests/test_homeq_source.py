@@ -5,8 +5,14 @@ from typing import Any
 import httpx
 import pytest
 
-from app.models import ListingSources, ListingsSearchOptions
-from app.scraping.sources.homeq import DETAIL_REQUEST_INTERVAL_SECONDS, HomeQSource
+from app.models import HomeQSearchOptions, ListingSources, ListingsSearchOptions
+from app.scraping.sources.homeq import (
+    DETAIL_RATE_LIMIT_COOLDOWN_SECONDS,
+    DETAIL_RATE_LIMIT_DECREASE_FACTOR,
+    DETAIL_REQUEST_INTERVAL_SECONDS,
+    DETAIL_REQUESTS_PER_MINUTE,
+    HomeQSource,
+)
 
 
 def _homeq_source() -> HomeQSource:
@@ -16,7 +22,7 @@ def _homeq_source() -> HomeQSource:
 def _homeq_options(max_listings: int | None = None) -> ListingsSearchOptions:
     return ListingsSearchOptions(
         sources=[ListingSources.HOMEQ],
-        homeq={"max_listings": max_listings},
+        homeq=HomeQSearchOptions(max_listings=max_listings),
     )
 
 
@@ -243,10 +249,10 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
     assert listing.coords is not None
     assert listing.coords.lat == 59.3506306
     assert listing.coords.long == 18.057292
-    assert listing.date_posted == datetime(2026, 4, 22)
+    assert listing.date_posted == datetime.fromisoformat("2026-04-22")
     assert listing.rental_period is not None
-    assert listing.rental_period.min == datetime(2030, 6, 30)
-    assert listing.rental_period.max == datetime(2030, 6, 30)
+    assert listing.rental_period.min == datetime.fromisoformat("2030-06-30")
+    assert listing.rental_period.max == datetime.fromisoformat("2030-06-30")
     assert listing.free_text is not None
     assert "Lägenhet är belägen nära intill grönområden" in listing.free_text
     assert "Staren 11 är en klassisk bostadsfastighet" in listing.free_text
@@ -382,7 +388,7 @@ async def test_homeq_parse_project_listing_builds_multi_apartment_listing() -> N
     assert listing.coords is not None
     assert listing.coords.lat == 59.4038659
     assert listing.coords.long == 17.8557312
-    assert listing.date_posted == datetime(2025, 6, 25)
+    assert listing.date_posted == datetime.fromisoformat("2025-06-25")
     assert listing.features.new_production is True
     assert listing.features.has_pictures is True
     assert listing.features.has_floorplan is False
@@ -428,7 +434,7 @@ async def test_homeq_fetch_json_retries_after_rate_limit(monkeypatch: pytest.Mon
 
     assert payload == {"object_ad": {"id": 251059}}
     assert request_count == 2
-    assert sleep_calls == [pytest.approx(65.0)]
+    assert sleep_calls == [pytest.approx(10.0)]
 
 
 @pytest.mark.asyncio
@@ -456,3 +462,52 @@ async def test_homeq_fetch_json_paces_detail_requests(monkeypatch: pytest.Monkey
 
     assert request_times == [50.0, pytest.approx(50.0 + DETAIL_REQUEST_INTERVAL_SECONDS)]
     assert sleep_calls == [pytest.approx(DETAIL_REQUEST_INTERVAL_SECONDS)]
+
+
+@pytest.mark.asyncio
+async def test_homeq_fetch_json_reduces_detail_rate_after_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _homeq_source()
+    current_time = 0.0
+    sleep_calls: list[float] = []
+    request_times: list[float] = []
+    request_count = 0
+
+    async def fake_sleep(seconds: float) -> None:
+        nonlocal current_time
+        sleep_calls.append(seconds)
+        current_time += seconds
+
+    monkeypatch.setattr(source, "_sleep", fake_sleep)
+    monkeypatch.setattr(source, "_monotonic", lambda: current_time)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        request_times.append(current_time)
+        if request_count == 1:
+            return httpx.Response(
+                429,
+                json={
+                    "error": "RateLimited",
+                    "description": "You are rate limited with 120/m.",
+                },
+            )
+        return httpx.Response(200, json={"object_ad": {"id": request_count}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/1")
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/2")
+
+    reduced_rate = DETAIL_REQUESTS_PER_MINUTE * DETAIL_RATE_LIMIT_DECREASE_FACTOR
+    reduced_interval = 60.0 / reduced_rate
+    assert request_times == [
+        0.0,
+        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS),
+        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS + reduced_interval),
+    ]
+    assert sleep_calls == [
+        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS),
+        pytest.approx(reduced_interval),
+    ]
