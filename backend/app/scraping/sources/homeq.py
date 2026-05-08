@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import urljoin
 
@@ -42,17 +43,10 @@ STOCKHOLM_COUNTY = "stockholms län"
 SEARCH_PAGE_SIZE = 1000
 LISTINGS_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
 DETAIL_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-DETAIL_FETCH_CONCURRENCY = 1
-DETAIL_REQUESTS_PER_MINUTE = 100
-DETAIL_REQUEST_INTERVAL_SECONDS = 60.0 / DETAIL_REQUESTS_PER_MINUTE
-DETAIL_REQUEST_BURST_CAPACITY = 1.0
-DETAIL_TOKEN_EPSILON = 1e-9
-DETAIL_RATE_LIMIT_COOLDOWN_SECONDS = 10.0
-DETAIL_RATE_LIMIT_MIN_REQUESTS_PER_MINUTE = 70.0
-DETAIL_RATE_LIMIT_DECREASE_FACTOR = 0.85
-DETAIL_RATE_LIMIT_RECOVERY_STEP = 5.0
-DETAIL_RATE_LIMIT_RECOVERY_SUCCESSES = 25
-DETAIL_MAX_FETCH_ATTEMPTS = 3
+DETAIL_FETCH_CONCURRENCY = 6
+OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS = 0.75
+OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS = 20.0
+OBJECT_DETAIL_MAX_FETCH_ATTEMPTS = 3
 
 DEFAULT_HEADERS = {
     "accept": "*/*",
@@ -172,108 +166,42 @@ def _image_urls_from_media(items: Any) -> list[str] | None:
     return urls or None
 
 
-class _AdaptiveTokenBucket:
-    """Pace HomeQ detail requests and step down after observed rate limits."""
+class _FixedRequestGate:
+    """Serialize paced requests behind one shared fixed-interval gate."""
 
-    def __init__(
-        self,
-        *,
-        rate_per_minute: float,
-        capacity: float,
-        min_rate_per_minute: float,
-    ) -> None:
-        self._base_rate_per_minute = rate_per_minute
-        self._current_rate_per_minute = rate_per_minute
-        self._min_rate_per_minute = min_rate_per_minute
-        self._capacity = capacity
-        self._tokens = capacity
-        self._updated_at = 0.0
-        self._blocked_until = 0.0
-        self._successful_requests_since_rate_limit = 0
+    def __init__(self, *, interval_seconds: float) -> None:
+        self._interval_seconds = interval_seconds
+        self._next_available_at = 0.0
         self._lock = asyncio.Lock()
 
-    @property
-    def current_rate_per_minute(self) -> float:
-        return self._current_rate_per_minute
-
-    def _refill(self, now: float) -> None:
-        if self._updated_at == 0.0:
-            self._updated_at = now
-            return
-
-        elapsed = max(0.0, now - self._updated_at)
-        if elapsed <= 0:
-            return
-
-        self._tokens = min(
-            self._capacity,
-            self._tokens + elapsed * (self._current_rate_per_minute / 60.0),
-        )
-        if self._capacity - self._tokens <= DETAIL_TOKEN_EPSILON:
-            self._tokens = self._capacity
-        self._updated_at = now
-
-    async def acquire(
+    async def run(
         self,
         *,
-        monotonic: callable,
-        sleep: callable,
-    ) -> None:
-        async with self._lock:
-            while True:
-                now = monotonic()
-                self._refill(now)
-
-                if now < self._blocked_until:
-                    await sleep(self._blocked_until - now)
-                    continue
-
-                if self._tokens >= 1.0 - DETAIL_TOKEN_EPSILON:
-                    self._tokens = max(0.0, self._tokens - 1.0)
-                    self._updated_at = now
-                    return
-
-                rate_per_second = self._current_rate_per_minute / 60.0
-                wait_seconds = (1.0 - self._tokens) / rate_per_second
-                if wait_seconds <= DETAIL_TOKEN_EPSILON:
-                    self._tokens = 1.0
-                    continue
-                await sleep(wait_seconds)
-
-    async def mark_rate_limited(
-        self,
-        *,
-        monotonic: callable,
-        cooldown_seconds: float,
-    ) -> float:
+        monotonic: Callable[[], float],
+        sleep: Callable[[float], Awaitable[None]],
+        operation: Callable[[], Awaitable[httpx.Response]],
+    ) -> httpx.Response:
         async with self._lock:
             now = monotonic()
-            self._refill(now)
-            self._current_rate_per_minute = max(
-                self._min_rate_per_minute,
-                self._current_rate_per_minute * DETAIL_RATE_LIMIT_DECREASE_FACTOR,
-            )
-            self._successful_requests_since_rate_limit = 0
-            self._tokens = 0.0
-            self._updated_at = now
-            self._blocked_until = max(self._blocked_until, now + cooldown_seconds)
-            return self._current_rate_per_minute
+            wait_seconds = self._next_available_at - now
+            if wait_seconds > 0:
+                await sleep(wait_seconds)
+                now = monotonic()
 
-    async def record_success(self) -> float:
+            self._next_available_at = max(self._next_available_at, now) + self._interval_seconds
+            return await operation()
+
+    async def cool_down(
+        self,
+        *,
+        monotonic: Callable[[], float],
+        cooldown_seconds: float,
+    ) -> None:
         async with self._lock:
-            if self._current_rate_per_minute >= self._base_rate_per_minute:
-                return self._current_rate_per_minute
-
-            self._successful_requests_since_rate_limit += 1
-            if self._successful_requests_since_rate_limit < DETAIL_RATE_LIMIT_RECOVERY_SUCCESSES:
-                return self._current_rate_per_minute
-
-            self._current_rate_per_minute = min(
-                self._base_rate_per_minute,
-                self._current_rate_per_minute + DETAIL_RATE_LIMIT_RECOVERY_STEP,
+            self._next_available_at = max(
+                self._next_available_at,
+                monotonic() + cooldown_seconds,
             )
-            self._successful_requests_since_rate_limit = 0
-            return self._current_rate_per_minute
 
 
 class HomeQSource(ListingSource):
@@ -281,15 +209,10 @@ class HomeQSource(ListingSource):
     name = "HomeQ"
     global_url = HOMEQ_BASE_PATH
     detail_fetch_concurrency = DETAIL_FETCH_CONCURRENCY
-    # Keep a low worker count and a paced request cadence. HomeQ starts
-    # returning 429s well before large fetches finish if detail requests are
-    # allowed to burst.
 
     def __init__(self) -> None:
-        self._detail_limiter = _AdaptiveTokenBucket(
-            rate_per_minute=DETAIL_REQUESTS_PER_MINUTE,
-            capacity=DETAIL_REQUEST_BURST_CAPACITY,
-            min_rate_per_minute=DETAIL_RATE_LIMIT_MIN_REQUESTS_PER_MINUTE,
+        self._object_detail_gate = _FixedRequestGate(
+            interval_seconds=OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS
         )
 
     def _monotonic(self) -> float:
@@ -298,20 +221,10 @@ class HomeQSource(ListingSource):
     async def _sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)
 
-    async def _wait_for_detail_slot(self) -> None:
-        await self._detail_limiter.acquire(monotonic=self._monotonic, sleep=self._sleep)
+    def _is_object_detail_url(self, url: str) -> bool:
+        return url.startswith("https://api.homeq.se/api/v1/object/")
 
-    def _parse_retry_after_seconds(self, retry_after: str | None) -> float | None:
-        if retry_after is None:
-            return None
-
-        try:
-            parsed = float(retry_after)
-        except ValueError:
-            return None
-        return parsed if parsed > 0 else None
-
-    def _describe_rate_limit(self, response: httpx.Response) -> str | None:
+    def _describe_error_response(self, response: httpx.Response) -> str | None:
         try:
             payload = response.json()
         except ValueError:
@@ -330,31 +243,6 @@ class HomeQSource(ListingSource):
         text = response.text.strip()
         return text or None
 
-    async def _mark_rate_limited(
-        self,
-        response: httpx.Response,
-        url: str,
-        attempt: int,
-    ) -> None:
-        description = self._describe_rate_limit(response) or "Too many requests"
-        retry_after = self._parse_retry_after_seconds(response.headers.get("retry-after"))
-        cooldown_seconds = max(retry_after or 0.0, DETAIL_RATE_LIMIT_COOLDOWN_SECONDS)
-        current_rate = await self._detail_limiter.mark_rate_limited(
-            monotonic=self._monotonic,
-            cooldown_seconds=cooldown_seconds,
-        )
-
-        logger.warning(
-            "[%s] HomeQ rate limited detail fetch for %s on attempt %s/%s, backing off for %.1f seconds and reducing detail rate to %.1f/min: %s",
-            self.source_id,
-            url,
-            attempt,
-            DETAIL_MAX_FETCH_ATTEMPTS,
-            cooldown_seconds,
-            current_rate,
-            description,
-        )
-
     def _get_options(self, options: ListingsSearchOptions) -> HomeQSearchOptions:
         return options.homeq or HomeQSearchOptions()
 
@@ -366,12 +254,12 @@ class HomeQSource(ListingSource):
         source_options = self._get_options(options)
         client.headers.update(DEFAULT_HEADERS)
         logger.info(
-            "[%s] Starting scrape with options: max_listings=%s, county=%s, detail_rate=%s/min, burst=%s",
+            "[%s] Starting scrape with options: max_listings=%s, county=%s, detail_fetch_concurrency=%s, object_detail_interval=%.2fs",
             self.source_id,
             source_options.max_listings,
             STOCKHOLM_COUNTY,
-            DETAIL_REQUESTS_PER_MINUTE,
-            DETAIL_REQUEST_BURST_CAPACITY,
+            self.detail_fetch_concurrency,
+            OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS,
         )
 
     def infer_logged_in(self, items: list[dict[str, Any]]) -> bool | None:
@@ -475,35 +363,65 @@ class HomeQSource(ListingSource):
         uri = item.get("uri")
         return _build_url(uri if isinstance(uri, str) else None)
 
+    async def _perform_json_get(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+    ) -> httpx.Response:
+        try:
+            return await client.get(url, timeout=DETAIL_TIMEOUT)
+        except httpx.HTTPError as error:
+            raise ListingParseException(f"Failed to fetch {url}: {error}") from error
+
     async def _fetch_json(self, client: httpx.AsyncClient, url: str) -> dict[str, Any]:
-        for attempt in range(1, DETAIL_MAX_FETCH_ATTEMPTS + 1):
-            await self._wait_for_detail_slot()
+        attempts = OBJECT_DETAIL_MAX_FETCH_ATTEMPTS if self._is_object_detail_url(url) else 1
+        response: httpx.Response | None = None
 
-            try:
-                response = await client.get(url, timeout=DETAIL_TIMEOUT)
-            except httpx.HTTPError as error:
-                raise ListingParseException(f"Failed to fetch {url}: {error}") from error
+        for attempt in range(1, attempts + 1):
+            if self._is_object_detail_url(url):
+                response = await self._object_detail_gate.run(
+                    monotonic=self._monotonic,
+                    sleep=self._sleep,
+                    operation=lambda: self._perform_json_get(client, url),
+                )
+            else:
+                response = await self._perform_json_get(client, url)
+            if response.status_code != 429:
+                break
 
-            if response.status_code == 429:
-                if attempt >= DETAIL_MAX_FETCH_ATTEMPTS:
-                    detail = self._describe_rate_limit(response) or "Too many requests"
-                    raise ListingParseException(f"Failed to fetch {url}: {detail}")
+            if attempt >= attempts:
+                break
 
-                await self._mark_rate_limited(response, url, attempt)
-                continue
+            description = self._describe_error_response(response) or "Too many requests"
+            await self._object_detail_gate.cool_down(
+                monotonic=self._monotonic,
+                cooldown_seconds=OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS,
+            )
+            logger.warning(
+                "[%s] HomeQ object detail fetch rate limited for %s on attempt %s/%s, cooling down for %.1f seconds: %s",
+                self.source_id,
+                url,
+                attempt,
+                attempts,
+                OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS,
+                description,
+            )
 
-            try:
-                response.raise_for_status()
-            except httpx.HTTPError as error:
-                raise ListingParseException(f"Failed to fetch {url}: {error}") from error
+        assert response is not None
 
-            payload = response.json()
-            if not isinstance(payload, dict):
-                raise ListingParseException(f"Unexpected payload from {url}")
-            await self._detail_limiter.record_success()
-            return payload
+        if response.status_code == 429:
+            detail = self._describe_error_response(response) or "Too many requests"
+            raise ListingParseException(f"Failed to fetch {url}: {detail}")
 
-        raise ListingParseException(f"Failed to fetch {url}: exhausted retries")
+        try:
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            raise ListingParseException(f"Failed to fetch {url}: {error}") from error
+
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ListingParseException(f"Unexpected payload from {url}")
+        return payload
 
     def _parse_individual_listing(
         self,

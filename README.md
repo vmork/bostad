@@ -1,7 +1,9 @@
 ## TODO
 
+- Hosting
+  - Research VPS, VM, Caddy, Nginx, Fly.io, proxy, CORS, Hetzner, Linode, Docker
+
 - Scraping
-  - final attempt at homeq ratelimiting
   - fields that should be added
     - is_furnished: enum
         - full, partial, none

@@ -29,7 +29,7 @@ type SourceOptionField = {
   placeholder: string;
   min?: number;
   inputClassName?: string;
-  value: string | number | undefined | null;
+  value: string | number | undefined | null;
   onChange: (value: string) => void;
 };
 

@@ -7,11 +7,9 @@ import pytest
 
 from app.models import HomeQSearchOptions, ListingSources, ListingsSearchOptions
 from app.scraping.sources.homeq import (
-    DETAIL_RATE_LIMIT_COOLDOWN_SECONDS,
-    DETAIL_RATE_LIMIT_DECREASE_FACTOR,
-    DETAIL_REQUEST_INTERVAL_SECONDS,
-    DETAIL_REQUESTS_PER_MINUTE,
     HomeQSource,
+    OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS,
+    OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS,
 )
 
 
@@ -402,10 +400,58 @@ async def test_homeq_parse_project_listing_builds_multi_apartment_listing() -> N
 
 
 @pytest.mark.asyncio
-async def test_homeq_fetch_json_retries_after_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_homeq_fetch_json_paces_only_object_detail_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     source = _homeq_source()
     current_time = 100.0
     sleep_calls: list[float] = []
+    request_times: list[tuple[str, float]] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        nonlocal current_time
+        sleep_calls.append(seconds)
+        current_time += seconds
+
+    monkeypatch.setattr(source, "_sleep", fake_sleep)
+    monkeypatch.setattr(source, "_monotonic", lambda: current_time)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        request_times.append((str(request.url), current_time))
+        return httpx.Response(200, json={"ok": True})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/1")
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/2")
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/projects/1158")
+        await source._fetch_json(client, "https://api.homeq.se/api/v1/projects/1158/media")
+
+    assert request_times == [
+        ("https://api.homeq.se/api/v1/object/1", 100.0),
+        (
+            "https://api.homeq.se/api/v1/object/2",
+            pytest.approx(100.0 + OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS),
+        ),
+        (
+            "https://api.homeq.se/api/v1/projects/1158",
+            pytest.approx(100.0 + OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS),
+        ),
+        (
+            "https://api.homeq.se/api/v1/projects/1158/media",
+            pytest.approx(100.0 + OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS),
+        ),
+    ]
+    assert sleep_calls == [pytest.approx(OBJECT_DETAIL_REQUEST_INTERVAL_SECONDS)]
+
+
+@pytest.mark.asyncio
+async def test_homeq_fetch_json_retries_object_rate_limit_with_shared_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _homeq_source()
+    current_time = 50.0
+    sleep_calls: list[float] = []
+    request_times: list[float] = []
     request_count = 0
 
     async def fake_sleep(seconds: float) -> None:
@@ -419,6 +465,7 @@ async def test_homeq_fetch_json_retries_after_rate_limit(monkeypatch: pytest.Mon
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal request_count
         request_count += 1
+        request_times.append(current_time)
         if request_count == 1:
             return httpx.Response(
                 429,
@@ -433,81 +480,8 @@ async def test_homeq_fetch_json_retries_after_rate_limit(monkeypatch: pytest.Mon
         payload = await source._fetch_json(client, "https://api.homeq.se/api/v1/object/251059")
 
     assert payload == {"object_ad": {"id": 251059}}
-    assert request_count == 2
-    assert sleep_calls == [pytest.approx(10.0)]
-
-
-@pytest.mark.asyncio
-async def test_homeq_fetch_json_paces_detail_requests(monkeypatch: pytest.MonkeyPatch) -> None:
-    source = _homeq_source()
-    current_time = 50.0
-    sleep_calls: list[float] = []
-    request_times: list[float] = []
-
-    async def fake_sleep(seconds: float) -> None:
-        nonlocal current_time
-        sleep_calls.append(seconds)
-        current_time += seconds
-
-    monkeypatch.setattr(source, "_sleep", fake_sleep)
-    monkeypatch.setattr(source, "_monotonic", lambda: current_time)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        request_times.append(current_time)
-        return httpx.Response(200, json={"ok": True})
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/1")
-        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/2")
-
-    assert request_times == [50.0, pytest.approx(50.0 + DETAIL_REQUEST_INTERVAL_SECONDS)]
-    assert sleep_calls == [pytest.approx(DETAIL_REQUEST_INTERVAL_SECONDS)]
-
-
-@pytest.mark.asyncio
-async def test_homeq_fetch_json_reduces_detail_rate_after_rate_limit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    source = _homeq_source()
-    current_time = 0.0
-    sleep_calls: list[float] = []
-    request_times: list[float] = []
-    request_count = 0
-
-    async def fake_sleep(seconds: float) -> None:
-        nonlocal current_time
-        sleep_calls.append(seconds)
-        current_time += seconds
-
-    monkeypatch.setattr(source, "_sleep", fake_sleep)
-    monkeypatch.setattr(source, "_monotonic", lambda: current_time)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal request_count
-        request_count += 1
-        request_times.append(current_time)
-        if request_count == 1:
-            return httpx.Response(
-                429,
-                json={
-                    "error": "RateLimited",
-                    "description": "You are rate limited with 120/m.",
-                },
-            )
-        return httpx.Response(200, json={"object_ad": {"id": request_count}})
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/1")
-        await source._fetch_json(client, "https://api.homeq.se/api/v1/object/2")
-
-    reduced_rate = DETAIL_REQUESTS_PER_MINUTE * DETAIL_RATE_LIMIT_DECREASE_FACTOR
-    reduced_interval = 60.0 / reduced_rate
     assert request_times == [
-        0.0,
-        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS),
-        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS + reduced_interval),
+        50.0,
+        pytest.approx(50.0 + OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS),
     ]
-    assert sleep_calls == [
-        pytest.approx(DETAIL_RATE_LIMIT_COOLDOWN_SECONDS),
-        pytest.approx(reduced_interval),
-    ]
+    assert sleep_calls == [pytest.approx(OBJECT_DETAIL_RATE_LIMIT_COOLDOWN_SECONDS)]
