@@ -1,0 +1,11 @@
+[Unit]
+Description=Run daily bostad listings refetch
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+Persistent=true
+RandomizedDelaySec=20m
+Unit=bostad-refetch.service
+
+[Install]
+WantedBy=timers.target
