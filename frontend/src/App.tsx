@@ -1,9 +1,8 @@
-import { memo, useEffect, useMemo, useState, useDeferredValue } from "react";
+import { lazy, memo, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { MapIcon } from "lucide-react";
 
 import { FilterDropdown } from "./components/FilterDropdown";
 import { ListingUI } from "./components/ListingUI";
-import { MapFilterModal } from "./components/MapFilterModal";
 import { RefetchButton } from "./components/RefetchButton";
 import { SortDropdown } from "./components/SortDropdown";
 
@@ -27,6 +26,11 @@ import { Button } from "./components/generic/Button";
 
 const LISTINGS_FILTERS_STORAGE_KEY = "listingsFilters";
 const LISTINGS_SORT_STORAGE_KEY = "listingsSort";
+
+const MapFilterModal = lazy(async () => {
+  const module = await import("./components/MapFilterModal");
+  return { default: module.MapFilterModal };
+});
 
 function SourceStatsPanel({ sourceStats }: { sourceStats: ListingSourceStats[] }) {
   if (sourceStats.length === 0) {
@@ -281,13 +285,17 @@ export default function App() {
         </div>
       </div>
 
-      <MapFilterModal
-        open={mapOpen}
-        onClose={() => setMapOpen(false)}
-        filters={displayFilters}
-        setFilters={setFilters}
-        listings={listings}
-      />
+      {mapOpen && (
+        <Suspense fallback={null}>
+          <MapFilterModal
+            open={mapOpen}
+            onClose={() => setMapOpen(false)}
+            filters={displayFilters}
+            setFilters={setFilters}
+            listings={listings}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

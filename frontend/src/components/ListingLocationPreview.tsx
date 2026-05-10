@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { MapPinIcon, XIcon } from "lucide-react";
 import type { Listing } from "../api/models";
 import { cn } from "../lib/utils";
 import { Dropdown } from "./generic/Dropdown";
 import { Modal } from "./generic/Modal";
-import { ListingMiniMap } from "./ListingMiniMap";
+
+const ListingMiniMap = lazy(async () => {
+  const module = await import("./ListingMiniMap");
+  return { default: module.ListingMiniMap };
+});
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -47,6 +51,11 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
   const isMobile = useIsMobileViewport(MOBILE_BREAKPOINT);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const locationLabel = `${listing.locMunicipality} - ${listing.locDistrict}`;
+  const mapPreviewFallback = (
+    <div className="flex h-full w-full items-center justify-center bg-gs-1/30 text-xs text-gs-3">
+      Loading map...
+    </div>
+  );
 
   useEffect(() => {
     if (!isMobile) {
@@ -106,7 +115,9 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
                 </button>
               </div>
               <div className="h-[min(60vh,22rem)] w-full">
-                <ListingMiniMap listing={listing} />
+                <Suspense fallback={mapPreviewFallback}>
+                  <ListingMiniMap listing={listing} />
+                </Suspense>
               </div>
             </Modal>
           </>
@@ -120,7 +131,9 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
                   <p className="truncate text-xs text-gs-3">{listing.name}</p>
                 </div>
                 <div className="h-52 overflow-hidden rounded-md border border-gs-2">
-                  <ListingMiniMap listing={listing} />
+                  <Suspense fallback={mapPreviewFallback}>
+                    <ListingMiniMap listing={listing} />
+                  </Suspense>
                 </div>
               </div>
             </Dropdown.Content>
