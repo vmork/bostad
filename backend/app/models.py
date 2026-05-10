@@ -182,20 +182,17 @@ class ListingsSearchOptions(CamelModel):
     each source can expose its own nested option object.
     """
 
-    sources: list[ListingSources] = Field(default_factory=lambda: [ListingSources.BOSTAD_STHLM])
+    sources: list[ListingSources] = Field(default_factory=lambda: [
+        ListingSources.BOSTAD_STHLM,
+        ListingSources.HOMEQ,
+    ])
     bostadsthlm: BostadSthlmSearchOptions | None = None
     homeq: HomeQSearchOptions | None = None
 
     @field_validator("sources")
     @classmethod
-    def _validate_sources(cls, sources: list[ListingSources]) -> list[ListingSources]:
-        if not sources:
-            raise ValueError("At least one source must be provided")
-
-        # Preserve order while dropping duplicates so repeated UI selections do
-        # not create redundant source work.
+    def _dedupe_sources(cls, sources: list[ListingSources]) -> list[ListingSources]:
         return list(dict.fromkeys(sources))
-
 
 ScrapeEventStatus = Literal["started", "progress", "complete", "failed"]
 
@@ -215,7 +212,7 @@ class AllListingsResponse(CamelModel):
     listings: list[Listing]
     errors: list[ListingParseError]
     source_stats: list[ListingSourceStats] = Field(default_factory=list)
-
+    updated_at: datetime | None = None
 
 class ListingsStreamEvent(CamelModel):
     event: ScrapeEventStatus

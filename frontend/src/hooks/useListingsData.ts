@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AllListingsResponse, ListingSourceStats } from "../api/models";
 import {
+  buildCachedListings,
+  isAllListingsResponse,
   LISTINGS_CACHE_KEY,
   LISTINGS_STREAM_URL,
   openListingsStream,
@@ -54,6 +56,42 @@ export function useListingsData(): UseListingsDataResult {
     };
   }, []);
 
+  useEffect(() => {
+    if (cachedListings !== null) {
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/all_listings", {
+          signal: abortController.signal,
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as AllListingsResponse;
+        if (!isAllListingsResponse(payload)) {
+          return;
+        }
+
+        const nextCachedListings = buildCachedListings(payload);
+        setCachedListings(nextCachedListings);
+        writeCachedListings(nextCachedListings, LISTINGS_CACHE_KEY);
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+      }
+    })();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [cachedListings]);
+
   const startListingsStream = (options?: ListingsStreamOptions) => {
     if (closeStreamRef.current) {
       return;
@@ -92,10 +130,7 @@ export function useListingsData(): UseListingsDataResult {
             );
           }
 
-          const nextCachedListings = {
-            data: payload,
-            updatedAt: new Date().toISOString(),
-          };
+          const nextCachedListings = buildCachedListings(payload);
 
           setIsFetching(false);
           setFetchError(null);

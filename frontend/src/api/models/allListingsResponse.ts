@@ -7,9 +7,11 @@
 import type { Listing } from './listing';
 import type { ListingParseError } from './listingParseError';
 import type { ListingSourceStats } from './listingSourceStats';
+import type { AllListingsResponseUpdatedAt } from './allListingsResponseUpdatedAt';
 
 export interface AllListingsResponse {
   listings: Listing[];
   errors: ListingParseError[];
   sourceStats?: ListingSourceStats[];
+  updatedAt?: AllListingsResponseUpdatedAt;
 }

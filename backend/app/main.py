@@ -1,10 +1,12 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import suppress
+from datetime import datetime, UTC
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.listings_cache import read_cached_all_listings
 from app.logging_config import configure_logging
 from app.models import (
     AllListingsResponse,
@@ -26,8 +28,15 @@ def _encode_sse(event: ListingsStreamEvent) -> str:
     return f"event: {event.event}\ndata: {payload}\n\n"
 
 
+def _stamp_updated_at(response: AllListingsResponse) -> AllListingsResponse:
+    return response.model_copy(update={"updated_at": datetime.now(UTC)})
+
+
 @app.get("/api/all_listings")
 async def all_listings() -> AllListingsResponse:
+    cached_response = read_cached_all_listings()
+    if cached_response is not None:
+        return cached_response
     return await _all_listings_with_options(ListingsSearchOptions())
 
 
@@ -40,7 +49,8 @@ async def _all_listings_with_options(
     options: ListingsSearchOptions,
 ) -> AllListingsResponse:
     try:
-        return await scrape_listings_with_options(get_listing_sources(options.sources), options)
+        response = await scrape_listings_with_options(get_listing_sources(options.sources), options)
+        return _stamp_updated_at(response)
     except ListingsFetchException as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 

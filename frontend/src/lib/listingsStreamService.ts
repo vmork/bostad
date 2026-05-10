@@ -18,6 +18,20 @@ export interface CachedListings {
   updatedAt: string;
 }
 
+function normalizeUpdatedAt(updatedAt: AllListingsResponse["updatedAt"]): string {
+  if (updatedAt instanceof Date) {
+    return updatedAt.toISOString();
+  }
+  return updatedAt ?? new Date().toISOString();
+}
+
+export function buildCachedListings(payload: AllListingsResponse): CachedListings {
+  return {
+    data: payload,
+    updatedAt: normalizeUpdatedAt(payload.updatedAt),
+  };
+}
+
 export type ScrapeEventStatus = "started" | "progress" | "complete" | "failed";
 
 export interface ScrapeProgress {

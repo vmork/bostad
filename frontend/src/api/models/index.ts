@@ -7,6 +7,7 @@
 
 export * from './allListingsResponse';
 export * from './allListingsResponseLoggedIn';
+export * from './allListingsResponseUpdatedAt';
 export * from './bostadSthlmSearchOptions';
 export * from './bostadSthlmSearchOptionsCookie';
 export * from './bostadSthlmSearchOptionsMaxListings';

@@ -69,6 +69,15 @@ When backend request/response models or stream event payloads change, always re-
 - Vite proxies `/api/*` to backend at localhost:8000 during dev
 - Run: `pnpm dev`
 
+### Deployment
+- Production hosting runs on a VPS with Caddy in front of the FastAPI backend, and the built Vite frontend is served as static files.
+- Caddy serves `frontend/dist` and reverse-proxies `/api/*` to the backend on `127.0.0.1:8000`, so production API traffic stays same-origin.
+- Caddy uses a `route` block so `/api/*` is handled before SPA `try_files`; without that ordering, POST requests like `/api/all_listings/stream` can fall through to the static handler and return `405`.
+- The backend runs as a `bostad-backend` systemd service on the VPS; normal deploys rebuild the frontend, run `uv sync` in `backend/`, and restart that service.
+- The deployed repo lives in-place under `/srv/bostad/app`, which keeps the top-level `data/` geo files available to backend code.
+- Auto-deploy runs through GitHub Actions on pushes to `main`; the workflow SSHes into the VPS and runs `/srv/bostad/bin/deploy.sh`.
+- The VPS uses its own GitHub deploy key for `git pull`, and GitHub Actions uses a separate SSH key to connect to the server and trigger the deploy.
+
 ## Conventions
 
 ### Backend Models
