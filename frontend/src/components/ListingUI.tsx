@@ -6,18 +6,18 @@ import { memo } from "react";
 import { ListingLocationPreview } from "./ListingLocationPreview";
 
 function rangeExists(range: Range | null | undefined): range is Partial<Range> {
-  return range?.min !== undefined || range?.max !== undefined;
+  return range?.min != undefined || range?.max != undefined;
 }
 
 function formatRangeString(range: Range): string {
   // accepts incomplete ranges, e.g. { min: 5000 } or { max: 10000 }
-  if (range?.min !== undefined && range?.max !== undefined) {
+  if (range?.min != undefined && range?.max != undefined) {
     return `${range.min}-${range.max}`;
   }
-  if (range?.min !== undefined) {
+  if (range?.min != undefined) {
     return `>${range.min}`;
   }
-  if (range?.max !== undefined) {
+  if (range?.max != undefined) {
     return `<${range.max}`;
   }
   return "";
