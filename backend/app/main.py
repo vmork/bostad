@@ -1,9 +1,9 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import suppress
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from app.listings_cache import read_cached_all_listings
@@ -32,12 +32,12 @@ def _stamp_updated_at(response: AllListingsResponse) -> AllListingsResponse:
     return response.model_copy(update={"updated_at": datetime.now(UTC)})
 
 
-@app.get("/api/all_listings")
-async def all_listings() -> AllListingsResponse:
+@app.get("/api/all_listings", response_model=AllListingsResponse)
+async def all_listings() -> AllListingsResponse | Response:
     cached_response = read_cached_all_listings()
     if cached_response is not None:
         return cached_response
-    return await _all_listings_with_options(ListingsSearchOptions())
+    return Response(status_code=204)
 
 
 @app.post("/api/all_listings")
@@ -85,9 +85,7 @@ async def _all_listings_stream_with_options(
                 progress_callback=emit_progress,
             )
         except Exception as error:  # noqa: BLE001
-            progress = last_progress or ScrapeProgress(
-                status="failed", current=0, total=0
-            )
+            progress = last_progress or ScrapeProgress(status="failed", current=0, total=0)
             await queue.put(
                 ListingsStreamEvent(
                     event="failed",

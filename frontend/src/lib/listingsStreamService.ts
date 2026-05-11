@@ -18,6 +18,15 @@ export interface CachedListings {
   updatedAt: string;
 }
 
+function parseUpdatedAtTimestamp(updatedAt: string | null | undefined): number | null {
+  if (!updatedAt) {
+    return null;
+  }
+
+  const parsed = Date.parse(updatedAt);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 function normalizeUpdatedAt(updatedAt: AllListingsResponse["updatedAt"]): string {
   if (updatedAt instanceof Date) {
     return updatedAt.toISOString();
@@ -30,6 +39,28 @@ export function buildCachedListings(payload: AllListingsResponse): CachedListing
     data: payload,
     updatedAt: normalizeUpdatedAt(payload.updatedAt),
   };
+}
+
+export function pickPreferredCachedListings(
+  localCached: CachedListings | null,
+  serverCached: CachedListings,
+): CachedListings {
+  if (localCached === null) {
+    return serverCached;
+  }
+
+  const localUpdatedAt = parseUpdatedAtTimestamp(localCached.updatedAt);
+  const serverUpdatedAt = parseUpdatedAtTimestamp(serverCached.updatedAt);
+
+  if (serverUpdatedAt === null) {
+    return localCached;
+  }
+
+  if (localUpdatedAt === null) {
+    return serverCached;
+  }
+
+  return serverUpdatedAt > localUpdatedAt ? serverCached : localCached;
 }
 
 export type ScrapeEventStatus = "started" | "progress" | "complete" | "failed";

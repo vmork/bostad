@@ -7,6 +7,7 @@ import {
   LISTINGS_CACHE_KEY,
   LISTINGS_STREAM_URL,
   openListingsStream,
+  pickPreferredCachedListings,
   readCachedListings,
   type CachedListings,
   type ListingsStreamOptions,
@@ -40,6 +41,7 @@ export function useListingsData(): UseListingsDataResult {
   const [cachedListings, setCachedListings] = useState<CachedListings | null>(() =>
     readCachedListings(LISTINGS_CACHE_KEY),
   );
+  const cachedListingsRef = useRef<CachedListings | null>(cachedListings);
   const [progress, setProgress] = useState<ScrapeProgress | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -47,6 +49,10 @@ export function useListingsData(): UseListingsDataResult {
   const newCountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [newListingIds, setNewListingIds] = useState<Set<string>>(new Set());
   const [refreshDelta, setRefreshDelta] = useState({ added: 0, removed: 0 });
+
+  useEffect(() => {
+    cachedListingsRef.current = cachedListings;
+  }, [cachedListings]);
 
   useEffect(() => {
     return () => {
@@ -57,10 +63,6 @@ export function useListingsData(): UseListingsDataResult {
   }, []);
 
   useEffect(() => {
-    if (cachedListings !== null) {
-      return;
-    }
-
     const abortController = new AbortController();
 
     void (async () => {
@@ -68,7 +70,7 @@ export function useListingsData(): UseListingsDataResult {
         const response = await fetch("/api/all_listings", {
           signal: abortController.signal,
         });
-        if (!response.ok) {
+        if (response.status === 204 || !response.ok) {
           return;
         }
 
@@ -77,9 +79,20 @@ export function useListingsData(): UseListingsDataResult {
           return;
         }
 
-        const nextCachedListings = buildCachedListings(payload);
-        setCachedListings(nextCachedListings);
-        writeCachedListings(nextCachedListings, LISTINGS_CACHE_KEY);
+        const serverCachedListings = buildCachedListings(payload);
+        const currentCachedListings = cachedListingsRef.current;
+        const preferredCachedListings = pickPreferredCachedListings(
+          currentCachedListings,
+          serverCachedListings,
+        );
+
+        if (preferredCachedListings !== currentCachedListings) {
+          setCachedListings(preferredCachedListings);
+        }
+
+        if (preferredCachedListings === serverCachedListings) {
+          writeCachedListings(serverCachedListings, LISTINGS_CACHE_KEY);
+        }
       } catch (error) {
         if (abortController.signal.aborted) {
           return;
@@ -90,7 +103,7 @@ export function useListingsData(): UseListingsDataResult {
     return () => {
       abortController.abort();
     };
-  }, [cachedListings]);
+  }, []);
 
   const startListingsStream = (options?: ListingsStreamOptions) => {
     if (closeStreamRef.current) {

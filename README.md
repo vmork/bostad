@@ -1,8 +1,5 @@
 ## TODO
 
-- Hosting
-  - Research VPS, VM, Caddy, Nginx, Fly.io, proxy, CORS, Hetzner, Linode, Docker
-
 - Scraping
   - fields that should be added
     - is_furnished: enum
@@ -45,8 +42,7 @@
       - if not, research cost of cheapest possible nonlocal
 
   - listing actions
-    - "add note" btn
-      - show collapsed note,
+    - "add tag" btn
     - "show on map", on hover shows map popup (no sidebar) with highlight
     - "save listing"
 
