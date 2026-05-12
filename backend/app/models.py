@@ -83,6 +83,7 @@ class ListingFeatures(CamelModel):
     # derived from listing detail page content
     has_viewing: bool | None = None  # true if viewing mentioned, false if explicitly negated
     has_pictures: bool = False
+    num_pictures: int = 0
     has_floorplan: bool = False
 
 

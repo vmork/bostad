@@ -22,5 +22,6 @@ export interface ListingFeatures {
   dryer?: boolean;
   hasViewing?: ListingFeaturesHasViewing;
   hasPictures?: boolean;
+  numPictures?: number;
   hasFloorplan?: boolean;
 }

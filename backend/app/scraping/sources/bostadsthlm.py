@@ -615,6 +615,7 @@ async def parse_listing_async(
     listing.features = listing.features.model_copy(
         update={
             "has_pictures": listing.image_urls is not None and len(listing.image_urls) > 0,
+            "num_pictures": len(listing.image_urls) if listing.image_urls is not None else 0,
             "has_floorplan": listing.floorplan_url is not None,
         }
     )

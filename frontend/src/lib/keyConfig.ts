@@ -155,6 +155,7 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "queuePosition",
+    defaultState: { allowNull: true },
   },
   totalApplicants: {
     type: "range",
@@ -164,6 +165,7 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "queuePosition",
+    defaultState: { allowNull: true },
   },
   longestQueueTimeDays: {
     type: "range",
@@ -175,6 +177,7 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "queuePosition",
+    defaultState: { allowNull: true },
   },
 
   // --- Requirements

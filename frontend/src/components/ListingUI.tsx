@@ -76,7 +76,7 @@ const ListingUI = memo(function ListingUI({
     lg.features?.balcony ? "Balcony" : null,
     lg.features?.newProduction ? "New production" : null,
     lg.features?.hasViewing === true ? "Viewing" : null,
-    lg.features?.hasPictures ? "Pictures" : null,
+    lg.features?.hasPictures ? `Pictures (${lg.features.numPictures ?? 0})` : null,
     lg.features?.hasFloorplan ? "Floorplan" : null,
   ].filter((value): value is string => value !== null);
 

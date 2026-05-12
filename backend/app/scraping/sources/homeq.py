@@ -502,6 +502,7 @@ class HomeQSource(ListingSource):
                 washing_machine=bool(detail.get("has_washing_machine")),
                 dryer=bool(detail.get("has_drier")),
                 has_pictures=image_urls is not None and len(image_urls) > 0,
+                num_pictures=len(image_urls) if image_urls is not None else 0,
                 has_floorplan=floorplan_url is not None,
             ),
             floor=_parse_float(detail.get("floor")),
@@ -595,6 +596,7 @@ class HomeQSource(ListingSource):
             features=ListingFeatures(
                 new_production=True,
                 has_pictures=image_urls is not None and len(image_urls) > 0,
+                num_pictures=len(image_urls) if image_urls is not None else 0,
                 has_floorplan=False,
             ),
             floor=floor_range.max if floor_range is not None else None,

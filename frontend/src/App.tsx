@@ -100,7 +100,6 @@ function ParseErrorsPanel({
 }
 
 const ListingsList = memo(function ListingsList({
-  listings,
   filteredListings,
   newListingIds,
   sourceNameById,
