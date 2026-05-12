@@ -98,12 +98,11 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
             <Modal
               open={mobilePreviewOpen}
               onClose={() => setMobilePreviewOpen(false)}
-              className="flex w-[min(92vw,24rem)] flex-col"
+              className="flex w-[min(94vw,28rem)] flex-col"
             >
               <div className="flex items-start justify-between gap-3 border-b border-gs-2 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-dark">{locationLabel}</p>
-                  <p className="truncate text-xs text-gs-3">{listing.name}</p>
+                  <p className="truncate text-sm font-medium text-dark">{listing.name}</p>
                 </div>
                 <button
                   type="button"
@@ -114,7 +113,7 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
                   <XIcon className="h-4 w-4" />
                 </button>
               </div>
-              <div className="h-[min(60vh,22rem)] w-full">
+              <div className="h-[min(65vh,28rem)] w-full">
                 <Suspense fallback={mapPreviewFallback}>
                   <ListingMiniMap listing={listing} />
                 </Suspense>
@@ -124,13 +123,12 @@ export function ListingLocationPreview({ listing, className }: ListingLocationPr
         ) : (
           <Dropdown.Root triggerMode="hover" preferredSide="bottom" gap={8} closeDelay={120}>
             <Dropdown.Trigger asChild>{triggerButton}</Dropdown.Trigger>
-            <Dropdown.Content className="w-[min(22rem,calc(100vw-1rem))] p-2">
+            <Dropdown.Content className="w-[min(26rem,calc(100vw-1rem))] p-3">
               <div className="space-y-2">
                 <div className="px-1">
-                  <p className="truncate text-sm font-medium text-dark">{locationLabel}</p>
-                  <p className="truncate text-xs text-gs-3">{listing.name}</p>
+                  <p className="truncate text-sm font-medium text-dark">{listing.name}</p>
                 </div>
-                <div className="h-52 overflow-hidden rounded-md border border-gs-2">
+                <div className="h-60 overflow-hidden rounded-md border border-gs-2">
                   <Suspense fallback={mapPreviewFallback}>
                     <ListingMiniMap listing={listing} />
                   </Suspense>

@@ -100,10 +100,12 @@ function ParseErrorsPanel({
 }
 
 const ListingsList = memo(function ListingsList({
+  listings,
   filteredListings,
   newListingIds,
   sourceNameById,
 }: {
+  listings: Listing[];
   filteredListings: Listing[];
   newListingIds: Set<string>;
   sourceNameById: Record<string, { name: string; globalUrl: string }>;
@@ -278,6 +280,7 @@ export default function App() {
 
           {/* Listings list */}
           <ListingsList
+            listings={listings}
             filteredListings={deferredDisplayedListings}
             newListingIds={listingsQuery.newListingIds}
             sourceNameById={sourceNameById}

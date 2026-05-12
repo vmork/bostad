@@ -3,12 +3,17 @@ import { Layer, Map, Marker, Source } from "react-map-gl/maplibre";
 import type { MapRef } from "react-map-gl/maplibre";
 import type { Listing } from "../api/models";
 import { getCachedGeoData, loadGeoData } from "../lib/geoData";
-import { AREA_LABEL_LAYOUT, AREA_LABEL_PAINT, BASEMAP_STYLE, hideBasemapPlaceLabels } from "../lib/mapTheme";
+import {
+  AREA_LABEL_LAYOUT,
+  AREA_LABEL_PAINT,
+  BASEMAP_STYLE,
+  hideBasemapPlaceLabels,
+} from "../lib/mapTheme";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const LABEL_SWITCH_ZOOM = 11;
-const DEFAULT_ZOOM = 14.2;
-const MIN_ZOOM = 10;
+const DEFAULT_ZOOM = 11;
+const MIN_ZOOM = 8.5;
 const MAX_ZOOM = 17.5;
 
 type ListingMiniMapProps = {
@@ -62,7 +67,10 @@ export function ListingMiniMap({ listing }: ListingMiniMapProps) {
               <Layer
                 id={`mini-district-label-${listing.id}`}
                 type="symbol"
-                layout={{ ...AREA_LABEL_LAYOUT, visibility: showDistrictLabels ? "visible" : "none" }}
+                layout={{
+                  ...AREA_LABEL_LAYOUT,
+                  visibility: showDistrictLabels ? "visible" : "none",
+                }}
                 paint={AREA_LABEL_PAINT}
               />
             </Source>
@@ -70,7 +78,10 @@ export function ListingMiniMap({ listing }: ListingMiniMapProps) {
               <Layer
                 id={`mini-region-label-${listing.id}`}
                 type="symbol"
-                layout={{ ...AREA_LABEL_LAYOUT, visibility: showDistrictLabels ? "none" : "visible" }}
+                layout={{
+                  ...AREA_LABEL_LAYOUT,
+                  visibility: showDistrictLabels ? "none" : "visible",
+                }}
                 paint={AREA_LABEL_PAINT}
               />
             </Source>
@@ -84,13 +95,6 @@ export function ListingMiniMap({ listing }: ListingMiniMapProps) {
           </div>
         </Marker>
       </Map>
-
-      <div className="pointer-events-none absolute inset-x-2 bottom-2 rounded-md bg-white/92 px-2 py-1 text-[11px] leading-snug text-stone-700 shadow-sm backdrop-blur-[1px]">
-        <div className="truncate font-medium text-stone-900">
-          {listing.locMunicipality} - {listing.locDistrict}
-        </div>
-        <div className="truncate">{listing.name}</div>
-      </div>
     </div>
   );
 }
