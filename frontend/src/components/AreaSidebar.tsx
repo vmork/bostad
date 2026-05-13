@@ -19,8 +19,6 @@ type AreaSidebarProps = {
   onToggleRegion: (municipalityId: string) => void;
   onHoverDistrict: (districtId: number | null) => void;
   onHoverRegion: (municipalityId: string | null) => void;
-  onSelectAll: () => void;
-  onDeselectAll: () => void;
 };
 
 // -- Helpers --
@@ -71,8 +69,6 @@ export function AreaSidebar({
   onToggleRegion,
   onHoverDistrict,
   onHoverRegion,
-  onSelectAll,
-  onDeselectAll,
 }: AreaSidebarProps) {
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
@@ -93,27 +89,6 @@ export function AreaSidebar({
 
   return (
     <div className="flex h-full flex-col border-t border-gs-2 bg-gs-0 md:border-t-0 md:border-l">
-      {/* Header with select/deselect all */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gs-2">
-        <span className="text-xs font-medium text-gs-4 uppercase">Areas</span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onSelectAll}
-            className="text-xs text-primary hover:underline cursor-pointer"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            onClick={onDeselectAll}
-            className="text-xs text-primary hover:underline cursor-pointer"
-          >
-            None
-          </button>
-        </div>
-      </div>
-
       {/* Scrollable region list */}
       <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y">
         {regionTree.map((region) => {

@@ -198,9 +198,25 @@ export function MapFilterModal({
             {selectedDistricts.length}/{totalDistricts} districts
           </span>
         </div>
-        <Button size="default" onClick={onClose}>
-          Done
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={selectAll}
+            className="text-xs text-primary transition-colors hover:underline cursor-pointer"
+          >
+            Select all
+          </button>
+          <button
+            type="button"
+            onClick={deselectAll}
+            className="text-xs text-primary transition-colors hover:underline cursor-pointer ml-2 mr-5"
+          >
+            Clear
+          </button>
+          <Button size="default" onClick={onClose}>
+            Done
+          </Button>
+        </div>
       </div>
 
       {/* Content: map + sidebar */}
@@ -261,8 +277,6 @@ export function MapFilterModal({
               onToggleRegion={toggleRegion}
               onHoverDistrict={handleHoverDistrict}
               onHoverRegion={handleHoverRegion}
-              onSelectAll={selectAll}
-              onDeselectAll={deselectAll}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-sm text-gs-3">

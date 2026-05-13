@@ -1,15 +1,20 @@
-import { lazy, memo, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { MapIcon } from "lucide-react";
 
 import { FilterDropdown } from "./components/FilterDropdown";
-import { ListingUI } from "./components/ListingUI";
 import { RefetchButton } from "./components/RefetchButton";
 import { SortDropdown } from "./components/SortDropdown";
+import { VirtualizedListingsList } from "./components/VirtualizedListingsList";
 
 import { type Listing, type ListingParseError, type ListingSourceStats } from "./api/models";
 import { useListingsData } from "./hooks/useListingsData";
 import { useLocalStorage } from "./hooks/useLocalStorage";
-import { applyFiltersToList, deriveContextualFilterStats, sortList } from "./lib/filterSort";
+import {
+  applyFiltersToList,
+  deriveContextualFilterStats,
+  sortList,
+  type Filter,
+} from "./lib/filterSort";
 import {
   buildSortEntries,
   hydrateFilters,
@@ -31,6 +36,24 @@ const MapFilterModal = lazy(async () => {
   const module = await import("./components/MapFilterModal");
   return { default: module.MapFilterModal };
 });
+
+function mergeFilterStats(filters: Filter<Listing>[], filtersWithStats: Filter<Listing>[]) {
+  const filtersById = new Map(filtersWithStats.map((filter) => [filter.id, filter] as const));
+
+  return filters.map((filter) => {
+    const nextFilter = filtersById.get(filter.id);
+    if (!nextFilter || nextFilter.type !== filter.type) return filter;
+
+    switch (filter.type) {
+      case "range":
+        return { ...filter, stats: nextFilter.stats };
+      case "set":
+        return { ...filter, stats: nextFilter.stats };
+      case "boolean":
+        return { ...filter, stats: nextFilter.stats };
+    }
+  });
+}
 
 function SourceStatsPanel({ sourceStats }: { sourceStats: ListingSourceStats[] }) {
   if (sourceStats.length === 0) {
@@ -99,30 +122,6 @@ function ParseErrorsPanel({
   );
 }
 
-const ListingsList = memo(function ListingsList({
-  filteredListings,
-  newListingIds,
-  sourceNameById,
-}: {
-  listings: Listing[];
-  filteredListings: Listing[];
-  newListingIds: Set<string>;
-  sourceNameById: Record<string, { name: string; globalUrl: string }>;
-}) {
-  return (
-    <div className="space-y-3">
-      {filteredListings.map((listing) => (
-        <ListingUI
-          key={listing.id}
-          listing={listing}
-          isNew={newListingIds.has(listing.id)}
-          sourceName={sourceNameById[listing.source]?.name ?? listing.source}
-        />
-      ))}
-    </div>
-  );
-});
-
 export default function App() {
   const listingsQuery = useListingsData();
 
@@ -145,6 +144,9 @@ export default function App() {
   const [filters, setFilters] = useState(() => hydrateFilters(storedFilterStates, listings));
   const [sortEntries, setSortEntries] = useState(() => hydrateSortEntries(storedSortStates));
   const [mapOpen, setMapOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const deferredFilters = useDeferredValue(filters);
+  const deferredSortEntries = useDeferredValue(sortEntries);
 
   // Check if the location filter is active (has selected districts)
   const locationFilterActive = filters.some((f) => f.id === "districtId" && f.state.enabled);
@@ -161,18 +163,22 @@ export default function App() {
     setStoredSortStates(serializeSortEntries(sortEntries));
   }, [sortEntries, setStoredSortStates]);
 
-  const displayFilters = useMemo(
-    () => deriveContextualFilterStats(filters, listings),
-    [filters, listings],
-  );
+  const contextualFilters = useMemo(() => {
+    if (!filtersOpen) return null;
+    return deriveContextualFilterStats(deferredFilters, listings);
+  }, [deferredFilters, filtersOpen, listings]);
+
+  const displayFilters = useMemo(() => {
+    if (!contextualFilters) return filters;
+    return mergeFilterStats(filters, contextualFilters);
+  }, [contextualFilters, filters]);
 
   const displayedListings = useMemo(() => {
-    const filtered = applyFiltersToList(listings, filters);
-    return sortList(filtered, sortEntries);
-  }, [listings, filters, sortEntries]);
+    const filtered = applyFiltersToList(listings, deferredFilters);
+    return sortList(filtered, deferredSortEntries);
+  }, [deferredFilters, deferredSortEntries, listings]);
 
-  const deferredDisplayedListings = useDeferredValue(displayedListings);
-  const displayedListingsAreStale = deferredDisplayedListings !== displayedListings;
+  const displayedListingsAreStale = deferredFilters !== filters || deferredSortEntries !== sortEntries;
   const sourceNameById = useMemo(
     () => mergeSourceMetadata(listingsQuery.sourceStats),
     [listingsQuery.sourceStats],
@@ -267,7 +273,12 @@ export default function App() {
           <div className="flex flex-wrap gap-2 md:gap-3">
             {listingsQuery.hasCachedData && (
               <>
-                <FilterDropdown filters={displayFilters} setFilters={setFilters} />
+                <FilterDropdown
+                  filters={filters}
+                  displayFilters={displayFilters}
+                  setFilters={setFilters}
+                  onOpenChange={setFiltersOpen}
+                />
                 <Button
                   size="large"
                   className={cn(
@@ -288,9 +299,8 @@ export default function App() {
           </div>
 
           {/* Listings list */}
-          <ListingsList
-            listings={listings}
-            filteredListings={deferredDisplayedListings}
+          <VirtualizedListingsList
+            listings={displayedListings}
             newListingIds={listingsQuery.newListingIds}
             sourceNameById={sourceNameById}
           />
@@ -302,7 +312,7 @@ export default function App() {
           <MapFilterModal
             open={mapOpen}
             onClose={() => setMapOpen(false)}
-            filters={displayFilters}
+            filters={filters}
             setFilters={setFilters}
             listings={listings}
           />

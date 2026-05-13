@@ -22,7 +22,7 @@ function replaceFilter(
   updatedFilter: Filter<Listing>,
 ) {
   const newFilters = filters.map((filter) =>
-    filter.id === updatedFilter.id ? updatedFilter : filter,
+    filter.id === updatedFilter.id ? { ...updatedFilter, stats: filter.stats } : filter,
   );
   setFilters(newFilters);
 }
@@ -333,15 +333,20 @@ function groupFilters(filters: Filter<Listing>[]) {
 
 export function FilterDropdown({
   filters,
+  displayFilters,
   setFilters,
+  onOpenChange,
 }: {
   filters: Filter<Listing>[];
+  displayFilters?: Filter<Listing>[];
   setFilters: (filters: Filter<Listing>[]) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
+  const renderedFilters = displayFilters ?? filters;
   const activeCount = filters.filter(
     (f) => f.state.enabled && keyConfig[f.id]?.showInFilter !== false,
   ).length;
-  const groups = groupFilters(filters);
+  const groups = groupFilters(renderedFilters);
 
   const clearAllFilters = () => {
     setFilters(filters.map((f) => resetFilter(f)));
@@ -349,7 +354,11 @@ export function FilterDropdown({
 
   return (
     <div className="flex items-center gap-0">
-      <Dropdown.Root triggerMode="hover" mobileModalTitle="Filters">
+      <Dropdown.Root
+        triggerMode="hover"
+        mobileModalTitle="Filters"
+        onOpenChange={onOpenChange}
+      >
         <Dropdown.Trigger>
           <Button
             size="large"
