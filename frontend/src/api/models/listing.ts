@@ -14,7 +14,7 @@ import type { ListingLeaseStartDate } from './listingLeaseStartDate';
 import type { ListingLeaseEndDate } from './listingLeaseEndDate';
 import type { ListingCoords } from './listingCoords';
 import type { ListingApplicationDeadlineDate } from './listingApplicationDeadlineDate';
-import type { ListingQueuePosition } from './listingQueuePosition';
+import type { ListingAllocationInfo } from './listingAllocationInfo';
 import type { ListingRequirements } from './listingRequirements';
 import type { ListingDatePosted } from './listingDatePosted';
 import type { ListingImageUrls } from './listingImageUrls';
@@ -46,7 +46,7 @@ export interface Listing {
   leaseEndDate?: ListingLeaseEndDate;
   coords?: ListingCoords;
   applicationDeadlineDate?: ListingApplicationDeadlineDate;
-  queuePosition?: ListingQueuePosition;
+  allocationInfo?: ListingAllocationInfo;
   requirements?: ListingRequirements;
   datePosted?: ListingDatePosted;
   imageUrls?: ListingImageUrls;

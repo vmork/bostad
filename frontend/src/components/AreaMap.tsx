@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Map, Marker, Source, Layer, Popup } from "react-map-gl/maplibre";
 import type { MapLayerMouseEvent, MapRef } from "react-map-gl/maplibre";
 import type { LngLatBoundsLike } from "maplibre-gl";
@@ -79,6 +79,25 @@ const FILTERED_DOT: CircleLayerSpecification["paint"] = {
 
 type AreaKind = "district" | "region";
 type StyleField = "fill" | "fillOp" | "stroke" | "strokeOp" | "w";
+
+function useCanHoverAreas() {
+  const [canHoverAreas, setCanHoverAreas] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const update = () => setCanHoverAreas(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return canHoverAreas;
+}
 
 /** Build a MapLibre "case" expression that assigns style values per feature,
  *  checking hovered → selected → partially-selected → default.
@@ -188,15 +207,18 @@ export function AreaMap({
     numRooms: number;
   } | null>(null);
   const mapRef = useRef<MapRef>(null);
+  const canHoverAreas = useCanHoverAreas();
 
   const showDistricts = zoom > LAYER_SWITCH_ZOOM;
   const showRentLabels = zoom >= SHOW_RENT_LABEL_ZOOM;
 
   // Sidebar hover takes priority over map hover
-  const effectiveHoveredDistrictId =
-    hoveredDistrictId ?? (mapHover?.kind === "district" ? (mapHover.id as number) : null);
-  const effectiveHoveredRegionId =
-    hoveredRegionId ?? (mapHover?.kind === "region" ? (mapHover.id as string) : null);
+  const effectiveHoveredDistrictId = canHoverAreas
+    ? hoveredDistrictId ?? (mapHover?.kind === "district" ? (mapHover.id as number) : null)
+    : null;
+  const effectiveHoveredRegionId = canHoverAreas
+    ? hoveredRegionId ?? (mapHover?.kind === "region" ? (mapHover.id as string) : null)
+    : null;
 
   // -- Selection sets --
 
@@ -297,6 +319,8 @@ export function AreaMap({
 
   const onMapClick = useCallback(
     (e: MapLayerMouseEvent) => {
+      setMapHover(null);
+      setTooltipInfo(null);
       const feature = e.features?.[0];
       if (!feature) return;
       if (feature.layer.id === DISTRICT_FILL) {
@@ -314,6 +338,13 @@ export function AreaMap({
     (e: MapLayerMouseEvent) => {
       const map = mapRef.current?.getMap();
       if (!map) return;
+
+      if (!canHoverAreas) {
+        map.getCanvas().style.cursor = "";
+        setMapHover(null);
+        setTooltipInfo(null);
+        return;
+      }
 
       // Check polygon layers (supplied via interactiveLayerIds → e.features)
       const feature = e.features?.[0];
@@ -358,7 +389,7 @@ export function AreaMap({
       }
       setTooltipInfo(null);
     },
-    [showRentLabels, zoom],
+    [canHoverAreas, showRentLabels, zoom],
   );
 
   const onMapMouseLeave = useCallback(() => {

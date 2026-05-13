@@ -122,7 +122,8 @@ function DataSettings({
           min: 1,
           inputClassName: "w-15 justify-self-end",
           value: normalizedOptions.bostadsthlm?.maxListings,
-          onChange: (value) => updateBostadOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
+          onChange: (value) =>
+            updateBostadOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
         },
       ],
     },
@@ -137,7 +138,8 @@ function DataSettings({
           min: 1,
           inputClassName: "w-15 justify-self-end",
           value: normalizedOptions.homeq?.maxListings,
-          onChange: (value) => updateHomeQOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
+          onChange: (value) =>
+            updateHomeQOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
         },
       ],
     },
@@ -152,14 +154,21 @@ function DataSettings({
           min: 1,
           inputClassName: "w-15 justify-self-end",
           value: normalizedOptions.qasa?.maxListings,
-          onChange: (value) => updateQasaOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
+          onChange: (value) =>
+            updateQasaOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
         },
       ],
     },
   ];
 
   return (
-    <Dropdown.Root triggerMode="hover" preferredSide="bottom" mobileBreakpoint={768} gap={5}>
+    <Dropdown.Root
+      triggerMode="hover"
+      preferredSide="bottom"
+      mobileBreakpoint={768}
+      gap={5}
+      mobileModalTitle="Options"
+    >
       <Dropdown.Trigger asChild>
         <Button size="large" variant="dark" className={cn("w-fit rounded-l-none border-l-0")}>
           <SettingsIcon size={15} />
@@ -232,12 +241,12 @@ export function RefetchButton({
   const normalizedSearchOptions = normalizeSearchOptions(searchOptions);
 
   return (
-    <div className="flex flex-wrap items-center gap-0">
+    <div className="flex items-center gap-0 overflow-x-scroll">
       <Button
         size="large"
         onClick={() => onFetch(normalizedSearchOptions)}
         disabled={isFetching}
-        className="rounded-r-none"
+        className="rounded-r-none min-w-fit"
       >
         {isFetching ? (
           <FetchStatusBadge progress={progress} />

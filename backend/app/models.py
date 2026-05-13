@@ -39,14 +39,14 @@ class FurnishingLevel(StrEnum):
     NONE = "none"
 
 
-class QueueStatus(CamelModel):
+class AllocationInfo(CamelModel):
+    allocation_method: AllocationMethod | None = None
     my_position: int | None = None
     total: int | None = None
     oldest_queue_dates: list[datetime] | None = (
         None  # sorted array of oldest queue dates, oldest first
     )
     has_good_chance: bool | None = None
-    allocation_method: AllocationMethod | None = None
 
 
 class TenantRequirements(CamelModel):
@@ -133,7 +133,7 @@ class Listing(CamelModel):
     lease_end_date: LeaseEndDateValue | None = None
     coords: Coordinates | None = None
     application_deadline_date: datetime | None = None
-    queue_position: QueueStatus | None = None
+    allocation_info: AllocationInfo | None = None
     requirements: TenantRequirements | None = None
     date_posted: datetime | None = None
     image_urls: list[str] | None = None

@@ -11,8 +11,7 @@ type AreaSidebarProps = {
   districts: DistrictCollection;
   hierarchy: AreaHierarchy;
   selectedDistricts: number[];
-  allowNull: boolean;
-  /** Listing counts keyed by district_id, with null key for unknown-location count */
+  /** Listing counts keyed by district_id. */
   countsByDistrict: Map<number | null, number>;
   hoveredDistrictId: number | null;
   hoveredRegionId: string | null;
@@ -20,7 +19,6 @@ type AreaSidebarProps = {
   onToggleRegion: (municipalityId: string) => void;
   onHoverDistrict: (districtId: number | null) => void;
   onHoverRegion: (municipalityId: string | null) => void;
-  onSetAllowNull: (allow: boolean) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
 };
@@ -66,7 +64,6 @@ export function AreaSidebar({
   districts,
   hierarchy,
   selectedDistricts,
-  allowNull,
   countsByDistrict,
   hoveredDistrictId,
   hoveredRegionId,
@@ -74,7 +71,6 @@ export function AreaSidebar({
   onToggleRegion,
   onHoverDistrict,
   onHoverRegion,
-  onSetAllowNull,
   onSelectAll,
   onDeselectAll,
 }: AreaSidebarProps) {
@@ -95,10 +91,8 @@ export function AreaSidebar({
     });
   };
 
-  const nullCount = countsByDistrict.get(null) ?? 0;
-
   return (
-    <div className="flex flex-col h-full border-l border-gs-2 bg-gs-0">
+    <div className="flex h-full flex-col border-t border-gs-2 bg-gs-0 md:border-t-0 md:border-l">
       {/* Header with select/deselect all */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gs-2">
         <span className="text-xs font-medium text-gs-4 uppercase">Areas</span>
@@ -121,7 +115,7 @@ export function AreaSidebar({
       </div>
 
       {/* Scrollable region list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y">
         {regionTree.map((region) => {
           const isExpanded = expandedRegions.has(region.municipalityId);
           const childIds = region.children.map((c) => c.id);
@@ -215,18 +209,6 @@ export function AreaSidebar({
             </div>
           );
         })}
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-gs-2 px-3 py-2">
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => onSetAllowNull(!allowNull)}
-        >
-          <Checkbox checked={allowNull} onChange={() => onSetAllowNull(!allowNull)} />
-          <span className="text-sm text-dark">Other locations</span>
-          {nullCount > 0 && <span className="text-xxs text-gs-3 tabular-nums">{nullCount}</span>}
-        </div>
       </div>
     </div>
   );

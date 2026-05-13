@@ -349,7 +349,7 @@ export function FilterDropdown({
 
   return (
     <div className="flex items-center gap-0">
-      <Dropdown.Root triggerMode="hover">
+      <Dropdown.Root triggerMode="hover" mobileModalTitle="Filters">
         <Dropdown.Trigger>
           <Button
             size="large"

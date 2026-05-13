@@ -91,7 +91,7 @@ export function formatLeaseStartLabel(value: Date | string | null | undefined) {
 
 export function formatLeaseEndLabel(value: Date | string | null | undefined) {
   if (!value) return null;
-  if (value === "indefinite") return "Indef.";
+  if (value === "indefinite") return "Indefinite";
   return formatShortDate(value);
 }
 

@@ -108,14 +108,25 @@ class GeoFakeSource(FakeSource):
 
 
 @pytest.mark.asyncio
-async def test_scrape_listings_with_options_emits_final_complete_event() -> None:
+async def test_scrape_listings_with_options_emits_final_complete_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.scraping.core.lookup_location",
+        lambda lat, long: GeoResolvedLocation(
+            district_id=321,
+            district_name="Södermalm",
+            municipality_id="0180",
+            municipality_name="Stockholm",
+        ),
+    )
     events = []
 
     async def progress_callback(event):
         events.append(event)
 
     result = await scrape_listings_with_options(
-        [FakeSource()],
+        [GeoFakeSource()],
         ListingsSearchOptions(),
         progress_callback=progress_callback,
     )
@@ -170,8 +181,15 @@ async def test_scrape_listings_with_options_keeps_source_location_when_geo_looku
 
     result = await scrape_listings_with_options([GeoFakeSource()], ListingsSearchOptions())
 
-    assert len(result.listings) == 1
-    listing = result.listings[0]
-    assert listing.district_id is None
-    assert listing.loc_municipality == "Stockholm"
-    assert listing.loc_district == "Sodermalm"
+    assert result.listings == []
+    assert result.errors == []
+    assert result.source_stats[0].num_listings == 0
+
+
+@pytest.mark.asyncio
+async def test_scrape_listings_with_options_skips_listings_without_coords() -> None:
+    result = await scrape_listings_with_options([FakeSource()], ListingsSearchOptions())
+
+    assert result.listings == []
+    assert result.errors == []
+    assert result.source_stats[0].num_listings == 0

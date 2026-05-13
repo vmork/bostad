@@ -15,8 +15,9 @@ import {
   type Ref,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon, XIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Modal } from "./Modal";
 
 import { usePositioning, type Side } from "../../hooks/usePositioning";
 
@@ -37,6 +38,7 @@ type RootContextValue = {
   gap: number;
   viewportPadding: number;
   closeDelay: number;
+  mobileModalTitle?: string;
   scheduleClose: () => void;
   cancelClose: () => void;
 };
@@ -66,6 +68,7 @@ type DropdownRootProps = {
   gap?: number;
   viewportPadding?: number;
   closeDelay?: number;
+  mobileModalTitle?: string;
 };
 
 type DropdownTriggerProps = {
@@ -238,6 +241,7 @@ function DropdownRoot({
   gap = 5,
   viewportPadding = 6,
   closeDelay = 50,
+  mobileModalTitle,
 }: DropdownRootProps) {
   const rootId = useId();
   const [open, setOpen] = useControllableOpenState({
@@ -324,6 +328,7 @@ function DropdownRoot({
         gap,
         viewportPadding,
         closeDelay,
+        mobileModalTitle,
         scheduleClose,
         cancelClose,
       }}
@@ -407,6 +412,45 @@ function DropdownContent({ children, className, preferredSide }: DropdownContent
 
   if (!root.open) {
     return null;
+  }
+
+  if (root.isMobile) {
+    return (
+      <Modal
+        open={root.open}
+        onClose={root.closeAll}
+        className="h-[min(42rem,calc(100dvh-1rem))] w-[min(32rem,calc(100vw-1rem))]"
+      >
+        <div
+          ref={root.contentRef}
+          data-dropdown-root={root.rootId}
+          className={cn(
+            "relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-gs-0",
+            className,
+            "min-w-0 max-w-none rounded-none border-0 shadow-none",
+          )}
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-gs-2 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-[0.7rem] uppercase tracking-[0.2em] text-gs-3">Menu</p>
+              <p className="truncate text-sm font-medium text-dark">
+                {root.mobileModalTitle ?? "Options"}
+              </p>
+            </div>
+            <button
+              type="button"
+              data-dropdown-root={root.rootId}
+              aria-label={`Close ${root.mobileModalTitle ?? "menu"}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gs-2 text-dark transition-colors hover:bg-black/5"
+              onClick={root.closeAll}
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y">{children}</div>
+        </div>
+      </Modal>
+    );
   }
 
   const contentNode = (
@@ -610,27 +654,42 @@ function DropdownSubmenuContent({ children, className, preferredSide }: Dropdown
         ref={submenu.contentRef}
         data-dropdown-root={root.rootId}
         className={cn(
-          "absolute inset-0 z-10 flex h-full flex-col bg-gs-0",
-          "max-h-[min(28rem,calc(100vh-1.5rem))] overflow-hidden",
-          className,
+          "absolute inset-0 z-20 flex h-full min-h-0 flex-col bg-gs-0 overflow-hidden",
+          "max-w-none rounded-none border-0 shadow-none",
         )}
       >
-        <div className="flex items-center gap-2 border-b border-gs-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-3 border-b border-gs-2 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              data-dropdown-root={root.rootId}
+              aria-label={`Back to ${root.mobileModalTitle ?? "previous menu"}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gs-2 text-dark transition-colors hover:bg-black/5"
+              onClick={() => submenu.close()}
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </button>
+            <p className="truncate text-sm font-medium text-dark">{submenu.title ?? "Submenu"}</p>
+          </div>
           <button
             type="button"
             data-dropdown-root={root.rootId}
-            aria-label={`Back to ${submenu.title ?? "previous menu"}`}
+            aria-label={`Close ${submenu.title ?? "submenu"}`}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gs-2 text-dark transition-colors hover:bg-black/5"
-            onClick={() => submenu.close()}
+            onClick={root.closeAll}
           >
-            <ChevronLeftIcon className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </button>
-          <div className="min-w-0">
-            <p className="text-[0.7rem] uppercase tracking-[0.2em] text-gs-3">Back</p>
-            <p className="truncate text-sm font-medium text-dark">{submenu.title ?? "Submenu"}</p>
-          </div>
         </div>
-        <div className="relative flex-1 overflow-y-auto">{children}</div>
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y",
+            className,
+            "max-w-none border-0 shadow-none",
+          )}
+        >
+          {children}
+        </div>
       </div>
     );
   }

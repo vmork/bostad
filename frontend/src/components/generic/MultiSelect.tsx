@@ -25,7 +25,7 @@ export function MultiSelect<T>({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Header: select all / clear */}
-      <div className="flex items-center justify-between text-xs text-gs-3">
+      <div className="hidden items-center justify-between text-xs text-gs-3 md:flex">
         <button
           type="button"
           className="hover:text-dark cursor-pointer"
@@ -43,7 +43,7 @@ export function MultiSelect<T>({
           </button>
         )}
       </div>
-      <div className="h-px bg-gs-2" />
+      <div className="hidden h-px bg-gs-2 md:block" />
       {/* Options grid */}
       <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
         {allItems.map((item) => {

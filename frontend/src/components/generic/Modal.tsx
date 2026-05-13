@@ -38,13 +38,13 @@ export function Modal({ open, onClose, children, className }: ModalProps) {
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 overflow-y-auto p-2 sm:flex sm:items-center sm:justify-center sm:p-4">
       {/* Backdrop — behind content, closes on click */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
       {/* Content — isolated stacking context so backdrop doesn't intercept children */}
       <div
         className={cn(
-          "relative z-10 isolate overflow-hidden rounded-md border border-gs-2 bg-gs-0",
+          "relative z-10 isolate mx-auto my-4 max-h-[calc(100dvh-1rem)] overflow-hidden rounded-md border border-gs-2 bg-gs-0 touch-pan-y sm:my-0 sm:max-h-[calc(100dvh-2rem)]",
           "shadow-[0_24px_60px_rgba(15,23,42,0.18)]",
           className,
         )}

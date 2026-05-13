@@ -21,7 +21,7 @@ from app.models import (
     ListingSources,
     ListingSourceStats,
     ListingsSearchOptions,
-    QueueStatus,
+    AllocationInfo,
     Range,
     TenantRequirements,
     TenureType,
@@ -87,7 +87,7 @@ DEFAULT_HEADERS = {
 class _ScrapedListingPageData(CamelModel):
     lease_start_date: LeaseStartDateValue | None = None
     lease_end_date: LeaseEndDateValue | None = None
-    queue_position: QueueStatus | None = None
+    queue_position: AllocationInfo | None = None
     requirements: TenantRequirements | None = None
     image_urls: list[str] | None = None
     floorplan_url: str | None = None
@@ -352,7 +352,7 @@ def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements | None:
     )
 
 
-def _extract_queue_position(soup: BeautifulSoup) -> QueueStatus | None:
+def _extract_queue_position(soup: BeautifulSoup) -> AllocationInfo | None:
     my_position: int | None = None
     total: int | None = None
     oldest_queue_dates: list[datetime] = []
@@ -419,7 +419,7 @@ def _extract_queue_position(soup: BeautifulSoup) -> QueueStatus | None:
         break
 
     if oldest_queue_dates or my_position is not None or total is not None:
-        return QueueStatus(
+        return AllocationInfo(
             my_position=my_position,
             total=total,
             oldest_queue_dates=oldest_queue_dates or None,
@@ -429,10 +429,10 @@ def _extract_queue_position(soup: BeautifulSoup) -> QueueStatus | None:
     return None
 
 
-def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueueStatus:
+def _extract_queue_signals_from_json(data: dict[str, Any]) -> AllocationInfo:
     has_good_chance_raw = data.get("HarBraChans")
     has_good_chance = bool(has_good_chance_raw) if isinstance(has_good_chance_raw, bool) else None
-    return QueueStatus(
+    return AllocationInfo(
         has_good_chance=has_good_chance,
         allocation_method=AllocationMethod.QUEUE_POINTS,
     )
@@ -612,7 +612,7 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         tenure_type=TenureType.FIRST_HAND,
         floor=floor,
         features=features,
-        queue_position=queue_position,
+        allocation_info=queue_position,
         date_posted=date_posted,
         application_deadline_date=application_deadline_date,
         num_apartments=num_apartments,
@@ -677,30 +677,30 @@ async def parse_listing_async(
         )
 
     if scraped_data.queue_position is not None:
-        if listing.queue_position is None:
-            listing.queue_position = scraped_data.queue_position
+        if listing.allocation_info is None:
+            listing.allocation_info = scraped_data.queue_position
         else:
-            listing.queue_position = listing.queue_position.model_copy(
+            listing.allocation_info = listing.allocation_info.model_copy(
                 update={
                     "my_position": (
                         scraped_data.queue_position.my_position
                         if scraped_data.queue_position.my_position is not None
-                        else listing.queue_position.my_position
+                        else listing.allocation_info.my_position
                     ),
                     "total": (
                         scraped_data.queue_position.total
                         if scraped_data.queue_position.total is not None
-                        else listing.queue_position.total
+                        else listing.allocation_info.total
                     ),
                     "oldest_queue_dates": (
                         scraped_data.queue_position.oldest_queue_dates
                         if scraped_data.queue_position.oldest_queue_dates is not None
-                        else listing.queue_position.oldest_queue_dates
+                        else listing.allocation_info.oldest_queue_dates
                     ),
                     "allocation_method": (
                         scraped_data.queue_position.allocation_method
                         if scraped_data.queue_position.allocation_method is not None
-                        else listing.queue_position.allocation_method
+                        else listing.allocation_info.allocation_method
                     ),
                 }
             )

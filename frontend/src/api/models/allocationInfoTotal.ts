@@ -5,4 +5,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type QueuePositionMyPosition = number | null;
+export type AllocationInfoTotal = number | null;

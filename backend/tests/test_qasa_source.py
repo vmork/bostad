@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any
 
@@ -6,6 +7,7 @@ import pytest
 
 from app.models import ListingSources, ListingsSearchOptions, QasaSearchOptions
 from app.scraping.scrape_utils import ListingParseException
+from app.scraping.sources import qasa as qasa_module
 from app.scraping.sources.qasa import DEFAULT_PAGE_SIZE, QasaSource
 
 
@@ -27,6 +29,7 @@ def _search_item(**overrides: Any) -> dict[str, Any]:
         "furnished": True,
         "homeType": "apartment",
         "householdSize": 1,
+        "description": "Fräsch lägenhet i bra skick i lugnt och fint villaområde.",
         "publishedAt": "2026-04-06T10:01:17Z",
         "rent": 8967,
         "roomCount": 1.0,
@@ -44,6 +47,18 @@ def _search_item(**overrides: Any) -> dict[str, Any]:
             "route": "Edelundavägen",
             "point": {"lat": 59.3752629, "lon": 17.8246468},
         },
+        "uploads": [
+            {
+                "type": "home_picture",
+                "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/second.jpg",
+                "order": 2,
+            },
+            {
+                "type": "home_picture",
+                "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/first.jpg",
+                "order": 1,
+            },
+        ],
     }
     item.update(overrides)
     return item
@@ -51,46 +66,31 @@ def _search_item(**overrides: Any) -> dict[str, Any]:
 
 def _detail_payload(**overrides: Any) -> dict[str, Any]:
     payload = {
-        "home": {
-            "id": "1341751",
-            "floor": None,
-            "description": "Fräsch lägenhet i bra skick i lugnt och fint villaområde.",
-            "location": {
-                "locality": "Hässelby",
-                "latitude": 59.3752629,
-                "longitude": 17.8246468,
-                "route": "Edelundavägen",
-                "streetNumber": None,
-            },
-            "duration": {
-                "startAsap": False,
-                "startOptimal": "2026-04-28T00:00:00Z",
-                "endUfn": True,
-                "endOptimal": None,
-            },
-            "traits": [
-                {"type": "furniture", "detail": "fully_furnished"},
-                {"type": "dish_washer", "detail": None},
-                {"type": "washing_machine", "detail": None},
-                {"type": "shower", "detail": None},
-                {"type": "toilet", "detail": None},
-                {"type": "stove", "detail": None},
-            ],
-            "uploads": [
-                {
-                    "type": "home_picture",
-                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/second.jpg",
-                    "metadata": {"order": 2},
-                },
-                {
-                    "type": "home_picture",
-                    "url": "https://qasa-static-prod.s3-eu-west-1.amazonaws.com/img/first.jpg",
-                    "metadata": {"order": 1},
-                },
-            ],
-        }
+        "id": "1341751",
+        "floor": None,
+        "location": {
+            "locality": "Hässelby",
+            "latitude": 59.3752629,
+            "longitude": 17.8246468,
+            "route": "Edelundavägen",
+            "streetNumber": None,
+        },
+        "duration": {
+            "startAsap": False,
+            "startOptimal": "2026-04-28T00:00:00Z",
+            "endUfn": True,
+            "endOptimal": None,
+        },
+        "traits": [
+            {"type": "furniture", "detail": "fully_furnished"},
+            {"type": "dish_washer", "detail": None},
+            {"type": "washing_machine", "detail": None},
+            {"type": "shower", "detail": None},
+            {"type": "toilet", "detail": None},
+            {"type": "stove", "detail": None},
+        ],
     }
-    payload["home"].update(overrides)
+    payload.update(overrides)
     return payload
 
 
@@ -189,9 +189,10 @@ async def test_qasa_parse_listing_maps_regular_listing() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content.decode("utf-8"))
-        assert payload["operationName"] == "Home"
-        assert payload["variables"] == {"id": "1341751"}
-        return httpx.Response(200, json={"data": _detail_payload()})
+        assert payload["operationName"] == "QasaHomeDetails"
+        assert payload["variables"] == {"id0": "1341751"}
+        assert "h0: home(id: $id0)" in payload["query"]
+        return httpx.Response(200, json={"data": {"h0": _detail_payload()}})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         listing = await source.parse_listing(item, client)
@@ -225,7 +226,61 @@ async def test_qasa_parse_listing_maps_regular_listing() -> None:
     assert listing.features.kitchen is True
     assert listing.features.bathroom is True
     assert listing.features.has_pictures is True
+    assert listing.features.has_viewing is None
     assert listing.features.num_pictures == 2
+
+
+@pytest.mark.asyncio
+async def test_qasa_parse_listing_batches_multiple_requests() -> None:
+    source = _qasa_source()
+    batch_queries: list[dict[str, Any]] = []
+    first_item = _search_item(id="1341751")
+    second_item = _search_item(
+        id="1367963",
+        title="Second home",
+        location={
+            "locality": "Solna",
+            "streetNumber": None,
+            "route": "Råsundavägen",
+            "point": {"lat": 59.365, "lon": 18.0},
+        },
+        uploads=[],
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_queries.append(payload)
+        assert payload["operationName"] == "QasaHomeDetails"
+        assert set(payload["variables"].values()) == {"1341751", "1367963"}
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "h0": _detail_payload(id=payload["variables"]["id0"]),
+                    "h1": _detail_payload(
+                        id=payload["variables"]["id1"],
+                        location={
+                            "locality": "Solna",
+                            "latitude": 59.365,
+                            "longitude": 18.0,
+                            "route": "Råsundavägen",
+                            "streetNumber": "8",
+                        },
+                    ),
+                }
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        first_listing, second_listing = await asyncio.gather(
+            source.parse_listing(first_item, client),
+            source.parse_listing(second_item, client),
+        )
+
+    assert len(batch_queries) == 1
+    assert first_listing.id == "qasa:1341751"
+    assert second_listing.id == "qasa:1367963"
+    assert second_listing.name == "Second home"
 
 
 @pytest.mark.asyncio
@@ -245,35 +300,36 @@ async def test_qasa_parse_listing_maps_student_shared_partial_furnishing() -> No
             "route": "Råsundavägen",
             "point": {"lat": 59.365, "lon": 18.0},
         },
+        uploads=[],
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
             json={
-                "data": _detail_payload(
-                    id="1367963",
-                    floor=3,
-                    description="Studentboende med delvis möblerat rum.",
-                    location={
-                        "locality": "Solna",
-                        "latitude": 59.365,
-                        "longitude": 18.0,
-                        "route": "Råsundavägen",
-                        "streetNumber": "12",
-                    },
-                    duration={
-                        "startAsap": False,
-                        "startOptimal": "2026-08-01T00:00:00Z",
-                        "endUfn": False,
-                        "endOptimal": "2027-05-31T00:00:00Z",
-                    },
-                    traits=[
-                        {"type": "furniture", "detail": "partly_furnished"},
-                        {"type": "elevator", "detail": None},
-                    ],
-                    uploads=[],
-                )
+                "data": {
+                    "h0": _detail_payload(
+                        id="1367963",
+                        floor=3,
+                        location={
+                            "locality": "Solna",
+                            "latitude": 59.365,
+                            "longitude": 18.0,
+                            "route": "Råsundavägen",
+                            "streetNumber": "12",
+                        },
+                        duration={
+                            "startAsap": False,
+                            "startOptimal": "2026-08-01T00:00:00Z",
+                            "endUfn": False,
+                            "endOptimal": "2027-05-31T00:00:00Z",
+                        },
+                        traits=[
+                            {"type": "furniture", "detail": "partly_furnished"},
+                            {"type": "elevator", "detail": None},
+                        ],
+                    )
+                }
             },
         )
 
@@ -298,14 +354,34 @@ async def test_qasa_parse_listing_maps_student_shared_partial_furnishing() -> No
 
 
 @pytest.mark.asyncio
+async def test_qasa_parse_listing_retries_rate_limited_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _qasa_source()
+    item = _search_item()
+    attempts = 0
+    monkeypatch.setattr(qasa_module, "DETAIL_BATCH_RETRY_BASE_SECONDS", 0.0)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(429, text="Retry later\n")
+        return httpx.Response(200, json={"data": {"h0": _detail_payload()}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        listing = await source.parse_listing(item, client)
+
+    assert listing.id == "qasa:1341751"
+    assert attempts == 2
+
+
+@pytest.mark.asyncio
 async def test_qasa_parse_listing_raises_for_graphql_errors() -> None:
     source = _qasa_source()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={"errors": [{"message": "Listing not found"}]},
-        )
+        return httpx.Response(200, json={"errors": [{"message": "Listing not found"}]})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(ListingParseException, match="Listing not found"):

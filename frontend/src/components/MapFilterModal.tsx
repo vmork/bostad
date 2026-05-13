@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import type { Listing } from "../api/models";
 import { applyFiltersToList, type Filter, type SetFilter } from "../lib/filterSort";
 import { getCachedGeoData, loadGeoData } from "../lib/geoData";
+import { cn } from "../lib/utils";
 import { Modal } from "./generic/Modal";
 import { Button } from "./generic/Button";
 import { AreaMap } from "./AreaMap";
@@ -29,12 +31,19 @@ export function MapFilterModal({
   const [geoData, setGeoData] = useState(getCachedGeoData());
   const [hoveredDistrictId, setHoveredDistrictId] = useState<number | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
+  const [mobileSidebarExpanded, setMobileSidebarExpanded] = useState(false);
 
   // Fetch geo data lazily on first open
   useEffect(() => {
     if (!open || geoData) return;
     loadGeoData().then(setGeoData);
   }, [open, geoData]);
+
+  useEffect(() => {
+    if (!open) {
+      setMobileSidebarExpanded(false);
+    }
+  }, [open]);
 
   // -- Filter state helpers --
 
@@ -44,7 +53,6 @@ export function MapFilterModal({
 
   const selectedDistricts = useMemo(() => districtFilter?.state.included ?? [], [districtFilter]);
   const selectedSet = useMemo(() => new Set(selectedDistricts), [selectedDistricts]);
-  const allowNull = districtFilter?.state.allowNull ?? false;
 
   // Keep all dots on the map, but visually mute listings excluded by the current filter set.
   const includedListingIds = useMemo(
@@ -60,15 +68,15 @@ export function MapFilterModal({
 
   /** Replace the districtId filter state immutably */
   const updateDistrictFilter = useCallback(
-    (included: number[], newAllowNull: boolean) => {
+    (included: number[]) => {
       if (!districtFilter) return;
       const updated: SetFilter<Listing, number> = {
         ...districtFilter,
         state: {
           ...districtFilter.state,
           included,
-          allowNull: newAllowNull,
-          enabled: included.length > 0 || newAllowNull,
+          allowNull: false,
+          enabled: included.length > 0,
         },
       };
       setFilters(filters.map((f) => (f.id === "districtId" ? updated : f)));
@@ -83,9 +91,9 @@ export function MapFilterModal({
       const next = selectedSet.has(districtId)
         ? selectedDistricts.filter((id) => id !== districtId)
         : [...selectedDistricts, districtId];
-      updateDistrictFilter(next, allowNull);
+      updateDistrictFilter(next);
     },
-    [selectedDistricts, selectedSet, allowNull, updateDistrictFilter],
+    [selectedDistricts, selectedSet, updateDistrictFilter],
   );
 
   const toggleRegion = useCallback(
@@ -103,9 +111,9 @@ export function MapFilterModal({
         const addSet = new Set([...selectedDistricts, ...childIds]);
         next = [...addSet];
       }
-      updateDistrictFilter(next, allowNull);
+      updateDistrictFilter(next);
     },
-    [geoData, selectedDistricts, selectedSet, allowNull, updateDistrictFilter],
+    [geoData, selectedDistricts, selectedSet, updateDistrictFilter],
   );
 
   // Compute listing counts per district
@@ -143,12 +151,12 @@ export function MapFilterModal({
   }, [geoData, selectedSet]);
 
   const selectAll = useCallback(() => {
-    updateDistrictFilter([...allDistrictIds], true);
+    updateDistrictFilter([...allDistrictIds]);
   }, [allDistrictIds, updateDistrictFilter]);
 
   const deselectAll = useCallback(() => {
-    updateDistrictFilter([], allowNull);
-  }, [allowNull, updateDistrictFilter]);
+    updateDistrictFilter([]);
+  }, [updateDistrictFilter]);
 
   const handleHoverDistrict = useCallback((districtId: number | null) => {
     setHoveredDistrictId(districtId);
@@ -168,21 +176,24 @@ export function MapFilterModal({
     : 0;
   // Count listings matched by the district filter alone (ignoring other filters)
   const selectedSet_ = new Set(selectedDistricts);
-  const includedListings = listings.filter(l => {
-    return (l.districtId == null) ? allowNull : selectedSet_.has(l.districtId)
-  })
+  const includedListings = listings.filter((listing) => {
+    return listing.districtId != null && selectedSet_.has(listing.districtId);
+  });
+
+  const mobileMapHeightClass = mobileSidebarExpanded ? "h-[32%]" : "h-[76%]";
+  const mobileSidebarHeightClass = mobileSidebarExpanded ? "h-[68%]" : "h-[24%]";
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      className="flex flex-col w-[min(90vw,72rem)] h-[min(80vh,48rem)]"
+      className="flex h-[min(92dvh,48rem)] w-[min(96vw,72rem)] flex-col md:h-[min(80vh,48rem)] md:w-[min(90vw,72rem)]"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gs-2">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-gs-2 px-4 py-3">
+        <div className="min-w-0 flex items-center gap-3">
           <span className="text-sm font-medium text-dark">Map filter</span>
-          <span className="text-xs text-gs-3">
+          <span className="truncate text-xs text-gs-3">
             {includedListings.length}/{listings.length} listings{" · "}
             {selectedDistricts.length}/{totalDistricts} districts
           </span>
@@ -193,9 +204,9 @@ export function MapFilterModal({
       </div>
 
       {/* Content: map + sidebar */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Map area */}
-        <div className="flex-2 min-w-0">
+        <div className={cn("min-h-0 min-w-0 md:flex-1", mobileMapHeightClass, "md:h-auto")}>
           {geoData ? (
             <AreaMap
               regions={geoData.regions}
@@ -218,14 +229,31 @@ export function MapFilterModal({
         </div>
 
         {/* Sidebar */}
-        <div className="w-72 shrink-0">
+        <div
+          className={cn(
+            "relative min-h-0 md:w-72 md:shrink-0",
+            mobileSidebarHeightClass,
+            "md:h-auto",
+          )}
+        >
+          <button
+            type="button"
+            aria-label={mobileSidebarExpanded ? "Collapse areas sidebar" : "Expand areas sidebar"}
+            className="absolute left-1/2 top-0 z-10 inline-flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gs-2 bg-gs-0 text-dark shadow-[0_12px_24px_rgba(15,23,42,0.14)] transition-colors hover:bg-black/5 md:hidden"
+            onClick={() => setMobileSidebarExpanded((current) => !current)}
+          >
+            {mobileSidebarExpanded ? (
+              <ChevronDownIcon className="h-4 w-4" />
+            ) : (
+              <ChevronUpIcon className="h-4 w-4" />
+            )}
+          </button>
           {geoData ? (
             <AreaSidebar
               regions={geoData.regions}
               districts={geoData.districts}
               hierarchy={geoData.hierarchy}
               selectedDistricts={selectedDistricts}
-              allowNull={allowNull}
               countsByDistrict={countsByDistrict}
               hoveredDistrictId={hoveredDistrictId}
               hoveredRegionId={hoveredRegionId}
@@ -233,7 +261,6 @@ export function MapFilterModal({
               onToggleRegion={toggleRegion}
               onHoverDistrict={handleHoverDistrict}
               onHoverRegion={handleHoverRegion}
-              onSetAllowNull={(allow) => updateDistrictFilter(selectedDistricts, allow)}
               onSelectAll={selectAll}
               onDeselectAll={deselectAll}
             />

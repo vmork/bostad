@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Any
@@ -5,6 +6,8 @@ from typing import Any
 import httpx
 
 from app.models import (
+    AllocationInfo,
+    AllocationMethod,
     Coordinates,
     FurnishingLevel,
     LeaseEndDateValue,
@@ -38,7 +41,10 @@ QASA_GRAPHQL_URL = "https://api.qasa.se/graphql"
 INDEX_TIMEOUT = httpx.Timeout(30.0, connect=15.0)
 DETAIL_TIMEOUT = httpx.Timeout(15.0, connect=10.0)
 DEFAULT_PAGE_SIZE = 200
-DETAIL_FETCH_CONCURRENCY = 12
+DETAIL_BATCH_MAX_ITEMS = 200
+DETAIL_FETCH_CONCURRENCY = DETAIL_BATCH_MAX_ITEMS
+DETAIL_BATCH_MAX_ATTEMPTS = 4
+DETAIL_BATCH_RETRY_BASE_SECONDS = 5.0
 
 DEFAULT_HEADERS = {
     "accept": "*/*",
@@ -56,6 +62,7 @@ query HomeSearch($order: HomeIndexSearchOrderInput, $offset: Int, $limit: Int, $
       totalCount
       nodes {
         id
+                description
         firstHand
         furnished
         homeType
@@ -80,43 +87,36 @@ query HomeSearch($order: HomeIndexSearchOrderInput, $offset: Int, $limit: Int, $
             lon
           }
         }
+                uploads {
+                    order
+                    type
+                    url
+                }
       }
     }
   }
 }
 """.strip()
 
-HOME_DETAIL_QUERY = """
-query Home($id: ID!) {
-  home(id: $id) {
-    id
-    floor
-    description
-    location {
-      locality
-      latitude
-      longitude
-      route
-      streetNumber
-    }
-    duration {
-      startAsap
-      startOptimal
-      endUfn
-      endOptimal
-    }
-    traits {
-      type
-      detail
-    }
-    uploads {
-      type
-      url
-      metadata {
-        order
-      }
-    }
-  }
+DETAIL_QUERY_FIELDS = """
+id
+floor
+location {
+    locality
+    latitude
+    longitude
+    route
+    streetNumber
+}
+duration {
+    startAsap
+    startOptimal
+    endUfn
+    endOptimal
+}
+traits {
+    type
+    detail
 }
 """.strip()
 
@@ -165,7 +165,7 @@ def _build_image_urls(uploads: Any) -> list[str] | None:
         if not isinstance(url, str) or not url:
             continue
         metadata = upload.get("metadata")
-        order = metadata.get("order") if isinstance(metadata, dict) else None
+        order = metadata.get("order") if isinstance(metadata, dict) else upload.get("order")
         normalized_order = int(order) if isinstance(order, int) else 0
         ordered_items.append((normalized_order, url))
 
@@ -237,6 +237,8 @@ def _build_features(detail: dict[str, Any], image_urls: list[str] | None) -> Lis
     traits = _trait_lookup(detail.get("traits"))
     kitchen = any(trait in traits for trait in ["kitchenette", "stove", "oven"])
     bathroom = any(trait in traits for trait in ["shower", "toilet", "bathtub"])
+    raw_description = detail.get("description")
+    description = raw_description if isinstance(raw_description, str) else None
     return ListingFeatures(
         balcony=True if "balcony" in traits else None,
         elevator=True if "elevator" in traits else None,
@@ -245,8 +247,34 @@ def _build_features(detail: dict[str, Any], image_urls: list[str] | None) -> Lis
         dishwasher="dish_washer" in traits,
         washing_machine="washing_machine" in traits,
         dryer="dryer" in traits or "drier" in traits,
+        has_viewing=_infer_has_viewing(description),
         has_pictures=bool(image_urls),
         num_pictures=len(image_urls or []),
+    )
+
+
+def _infer_has_viewing(description: str | None) -> bool | None:
+    if description is None:
+        return None
+
+    normalized = description.lower()
+    if any(marker in normalized for marker in ["ingen visning", "no viewing"]):
+        return False
+    if any(marker in normalized for marker in ["visning", "viewing", "showing"]):
+        return True
+    return None
+
+
+def _build_detail_batch_query(batch_ids: list[str]) -> tuple[str, dict[str, str]]:
+    variables = {f"id{index}": listing_id for index, listing_id in enumerate(batch_ids)}
+    variable_declarations = ", ".join(f"$id{index}: ID!" for index in range(len(batch_ids)))
+    aliases = "\n".join(
+        f"  h{index}: home(id: $id{index}) {{\n    {DETAIL_QUERY_FIELDS.replace(chr(10), chr(10) + '    ')}\n  }}"
+        for index in range(len(batch_ids))
+    )
+    return (
+        f"query QasaHomeDetails({variable_declarations}) {{\n{aliases}\n}}",
+        variables,
     )
 
 
@@ -302,6 +330,11 @@ class QasaSource(ListingSource):
     name = "Qasa"
     global_url = QASA_GLOBAL_URL
     detail_fetch_concurrency = DETAIL_FETCH_CONCURRENCY
+
+    def __init__(self) -> None:
+        self._detail_batch_lock = asyncio.Lock()
+        self._detail_batch_waiters: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self._detail_batch_task: asyncio.Task[None] | None = None
 
     def _get_options(self, options: ListingsSearchOptions) -> QasaSearchOptions:
         return options.qasa or QasaSearchOptions()
@@ -393,6 +426,126 @@ class QasaSource(ListingSource):
             raise exception_type(f"Unexpected GraphQL data from {QASA_GRAPHQL_URL}")
         return data
 
+    async def _fetch_detail_batch(
+        self,
+        client: httpx.AsyncClient,
+        batch_ids: list[str],
+    ) -> dict[str, Any]:
+        query, variables = _build_detail_batch_query(batch_ids)
+
+        for attempt in range(1, DETAIL_BATCH_MAX_ATTEMPTS + 1):
+            try:
+                response = await client.post(
+                    QASA_GRAPHQL_URL,
+                    json={
+                        "operationName": "QasaHomeDetails",
+                        "query": query,
+                        "variables": variables,
+                    },
+                    timeout=DETAIL_TIMEOUT,
+                )
+            except httpx.HTTPError as error:
+                raise ListingParseException(
+                    f"Failed to fetch {QASA_GRAPHQL_URL}: {error}"
+                ) from error
+
+            if response.status_code != 429:
+                break
+
+            if attempt >= DETAIL_BATCH_MAX_ATTEMPTS:
+                detail = response.text.strip() or "Retry later"
+                raise ListingParseException(f"Failed to fetch {QASA_GRAPHQL_URL}: {detail}")
+
+            wait_seconds = DETAIL_BATCH_RETRY_BASE_SECONDS * (2 ** (attempt - 1))
+            logger.warning(
+                "[%s] Qasa detail batch rate limited for %s listings on attempt %s/%s, retrying in %.1fs",
+                self.source_id,
+                len(batch_ids),
+                attempt,
+                DETAIL_BATCH_MAX_ATTEMPTS,
+                wait_seconds,
+            )
+            await asyncio.sleep(wait_seconds)
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            raise ListingParseException(f"Failed to fetch {QASA_GRAPHQL_URL}: {error}") from error
+
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ListingParseException(f"Unexpected payload from {QASA_GRAPHQL_URL}")
+
+        errors = payload.get("errors")
+        if isinstance(errors, list) and errors:
+            messages: list[str] = []
+            for error in errors:
+                if not isinstance(error, dict):
+                    continue
+                message = error.get("message")
+                if isinstance(message, str):
+                    messages.append(message)
+            joined = "; ".join(messages) if messages else "Unknown GraphQL error"
+            raise ListingParseException(f"Failed to fetch {QASA_GRAPHQL_URL}: {joined}")
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise ListingParseException(f"Unexpected GraphQL data from {QASA_GRAPHQL_URL}")
+        return data
+
+    async def _run_detail_batch_loop(self, client: httpx.AsyncClient) -> None:
+        await asyncio.sleep(0)
+
+        while True:
+            async with self._detail_batch_lock:
+                if not self._detail_batch_waiters:
+                    self._detail_batch_task = None
+                    return
+
+                batch_ids = list(self._detail_batch_waiters.keys())[:DETAIL_BATCH_MAX_ITEMS]
+                batch_waiters = {
+                    listing_id: self._detail_batch_waiters.pop(listing_id)
+                    for listing_id in batch_ids
+                }
+
+            try:
+                batch_data = await self._fetch_detail_batch(client, batch_ids)
+            except Exception as error:  # noqa: BLE001
+                for future in batch_waiters.values():
+                    if not future.done():
+                        future.set_exception(error)
+                continue
+
+            for index, listing_id in enumerate(batch_ids):
+                future = batch_waiters[listing_id]
+                if future.done():
+                    continue
+                detail = batch_data.get(f"h{index}")
+                if not isinstance(detail, dict):
+                    future.set_exception(
+                        ListingParseException(
+                            f"Invalid Qasa detail payload for listing {listing_id}"
+                        )
+                    )
+                    continue
+                future.set_result(detail)
+
+    async def _get_detail_for_listing(
+        self,
+        item: dict[str, Any],
+        client: httpx.AsyncClient,
+    ) -> dict[str, Any]:
+        listing_id = self.get_listing_id(item)
+        async with self._detail_batch_lock:
+            future = self._detail_batch_waiters.get(listing_id)
+            if future is None:
+                future = asyncio.get_running_loop().create_future()
+                self._detail_batch_waiters[listing_id] = future
+            if self._detail_batch_task is None:
+                self._detail_batch_task = asyncio.create_task(self._run_detail_batch_loop(client))
+
+        return await future
+
     async def fetch_listing_index(
         self,
         client: httpx.AsyncClient,
@@ -409,11 +562,15 @@ class QasaSource(ListingSource):
         started_at = time.time()
 
         while True:
-            remaining = None if configured_limit is None else max(configured_limit - len(results), 0)
+            remaining = (
+                None if configured_limit is None else max(configured_limit - len(results), 0)
+            )
             if remaining == 0:
                 break
 
-            page_limit = min(DEFAULT_PAGE_SIZE, remaining) if remaining is not None else DEFAULT_PAGE_SIZE
+            page_limit = (
+                min(DEFAULT_PAGE_SIZE, remaining) if remaining is not None else DEFAULT_PAGE_SIZE
+            )
             data = await self._post_graphql(
                 client,
                 operation_name="HomeSearch",
@@ -441,7 +598,11 @@ class QasaSource(ListingSource):
             if not isinstance(nodes, list) or not nodes:
                 break
 
-            total_count = documents.get("totalCount") if isinstance(documents.get("totalCount"), int) else total_count
+            total_count = (
+                documents.get("totalCount")
+                if isinstance(documents.get("totalCount"), int)
+                else total_count
+            )
             for node in nodes:
                 if not isinstance(node, dict):
                     continue
@@ -484,28 +645,20 @@ class QasaSource(ListingSource):
         client: httpx.AsyncClient,
     ) -> Listing:
         source_local_id = self.get_listing_id(item)
-        data = await self._post_graphql(
-            client,
-            operation_name="Home",
-            query=HOME_DETAIL_QUERY,
-            variables={"id": source_local_id},
-            timeout=DETAIL_TIMEOUT,
-            exception_type=ListingParseException,
-        )
-        detail = data.get("home")
-        if not isinstance(detail, dict):
-            raise ListingParseException(f"Invalid Qasa detail payload for listing {source_local_id}")
+        detail = await self._get_detail_for_listing(item, client)
 
         rent = _parse_float(item.get("rent"))
         tenant_base_fee = _parse_float(item.get("tenantBaseFee"))
         area_sqm = _parse_float(item.get("squareMeters"))
         num_rooms = _parse_float(item.get("roomCount"))
         if rent is None or area_sqm is None or num_rooms is None:
-            raise ListingParseException(f"Missing required Qasa fields for listing {source_local_id}")
+            raise ListingParseException(
+                f"Missing required Qasa fields for listing {source_local_id}"
+            )
         if tenant_base_fee is not None:
             rent += tenant_base_fee
 
-        image_urls = _build_image_urls(detail.get("uploads"))
+        image_urls = _build_image_urls(item.get("uploads"))
         lease_start_date = _parse_lease_start(item, detail)
         lease_end_date = _parse_lease_end(item, detail)
         coords = _build_coords(item, detail)
@@ -516,12 +669,16 @@ class QasaSource(ListingSource):
         )
         if isinstance(detail_location.get("locality"), str):
             locality = detail_location.get("locality")
-        elif isinstance(item.get("location"), dict) and isinstance(item["location"].get("locality"), str):
+        elif isinstance(item.get("location"), dict) and isinstance(
+            item["location"].get("locality"), str
+        ):
             locality = item["location"].get("locality")
         if locality is None:
             raise ListingParseException(f"Missing location for Qasa listing {source_local_id}")
 
-        raw_description = detail.get("description")
+        raw_description = item.get("description")
+        if not isinstance(raw_description, str):
+            raw_description = detail.get("description")
         description = raw_description.strip() if isinstance(raw_description, str) else None
 
         return Listing(
@@ -544,13 +701,18 @@ class QasaSource(ListingSource):
             ),
             furnishing=_build_furnishing(item, detail),
             tenure_type=_build_tenure_type(item),
-            features=_build_features(detail, image_urls),
+            features=_build_features(
+                detail | ({"description": description} if description is not None else {}),
+                image_urls,
+            ),
             floor=_parse_float(detail.get("floor")),
             lease_start_date=lease_start_date,
             lease_end_date=lease_end_date,
             coords=coords,
             application_deadline_date=None,
-            queue_position=None,
+            allocation_info=AllocationInfo(
+                allocation_method=AllocationMethod.MANUAL_REQUEST  # listings are posted by individuals
+            ),
             requirements=_build_requirements(item),
             date_posted=(
                 parse_iso_datetime(item["publishedAt"])

@@ -23,14 +23,14 @@ import {
   toDateTimestamp,
 } from "./utils";
 
-type FilterGroups = "location" | "info" | "timing" | "queuePosition" | "requirements" | "features";
+type FilterGroups = "location" | "info" | "timing" | "allocationInfo" | "requirements" | "features";
 
 // Human-readable names for each filter group
 export const groupNames: Record<FilterGroups, string> = {
   location: "Location",
   info: "Basic Info",
   timing: "Timing",
-  queuePosition: "Queue",
+  allocationInfo: "Allocation",
   requirements: "Requirements",
   features: "Features",
 };
@@ -87,6 +87,10 @@ function leaseStartSortValue(value: Listing["leaseStartDate"]) {
   return toTimestamp(value);
 }
 
+function leaseEndDays(value: Listing["leaseEndDate"]) {
+  return clampNonNegative(daysUntil(value));
+}
+
 export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
   // --- Location (managed by map modal, hidden from FilterDropdown)
   districtId: {
@@ -118,6 +122,16 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     key: "apartmentType",
     group: "info",
     showInSort: false,
+  },
+  tenureType: {
+    type: "set",
+    id: "tenureType",
+    name: "Tenure type",
+    key: (ls) => ls.tenureType ?? null,
+    getOptionLabel: (value: ListingTenureType) => formatTenureTypeLabel(value) ?? String(value),
+    group: "info",
+    showInSort: false,
+    defaultState: { allowNull: true },
   },
   areaSqm: {
     type: "range",
@@ -156,28 +170,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     stepSize: 1,
     group: "info",
   },
-  postAgeDays: {
-    type: "range",
-    id: "postAgeDays",
-    name: "Post age",
-    unit: "days",
-    key: (ls) => daysSince(ls.datePosted),
-    // Preserve age ordering while avoiding Date.now drift during sorting.
-    sortKey: (ls) => descendingTimestamp(ls.datePosted),
-    boundType: "upper",
-    stepSize: 1,
-    defaultState: { allowNull: true },
-    group: "info",
-  },
-  source: {
-    type: "set",
-    id: "source",
-    name: "Source",
-    key: "source",
-    getOptionLabel: (source: ListingSources) => sourceMetadataById[source]?.name ?? source,
-    group: "info",
-    showInSort: false,
-  },
   furnishing: {
     type: "set",
     id: "furnishing",
@@ -188,15 +180,14 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     showInSort: false,
     defaultState: { allowNull: true },
   },
-  tenureType: {
+  source: {
     type: "set",
-    id: "tenureType",
-    name: "Tenure",
-    key: (ls) => ls.tenureType ?? null,
-    getOptionLabel: (value: ListingTenureType) => formatTenureTypeLabel(value) ?? String(value),
+    id: "source",
+    name: "Source",
+    key: "source",
+    getOptionLabel: (source: ListingSources) => sourceMetadataById[source]?.name ?? source,
     group: "info",
     showInSort: false,
-    defaultState: { allowNull: true },
   },
 
   // --- Timing
@@ -212,10 +203,35 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     defaultState: { allowNull: false },
     group: "timing",
   },
+  leaseEndDays: {
+    type: "range",
+    id: "leaseEndDays",
+    name: "Lease end in",
+    unit: "days",
+    key: (ls) => leaseEndDays(ls.leaseEndDate),
+    sortKey: (ls) => toTimestamp(ls.leaseEndDate),
+    boundType: "upper",
+    stepSize: 1,
+    defaultState: { allowNull: false },
+    group: "timing",
+  },
+  postAgeDays: {
+    type: "range",
+    id: "postAgeDays",
+    name: "Post age",
+    unit: "days",
+    key: (ls) => daysSince(ls.datePosted),
+    // Preserve age ordering while avoiding Date.now drift during sorting.
+    sortKey: (ls) => descendingTimestamp(ls.datePosted),
+    boundType: "upper",
+    stepSize: 1,
+    defaultState: { allowNull: true },
+    group: "timing",
+  },
   applicationDeadlineDays: {
     type: "range",
     id: "applicationDeadlineDays",
-    name: "Deadline in",
+    name: "Application deadline",
     unit: "days",
     key: (ls) => daysUntil(ls.applicationDeadlineDate),
     sortKey: (ls) => toTimestamp(ls.applicationDeadlineDate),
@@ -226,34 +242,34 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
   },
 
   // --- Queue position
-  queuePosition: {
-    type: "range",
-    id: "queuePosition",
-    name: "Queue position",
-    key: (ls) => ls.queuePosition?.myPosition ?? null,
-    boundType: "both",
-    stepSize: 1,
-    group: "queuePosition",
-    defaultState: { allowNull: true },
-  },
   allocationMethod: {
     type: "set",
     id: "allocationMethod",
     name: "Allocation method",
-    key: (ls) => ls.queuePosition?.allocationMethod ?? null,
+    key: (ls) => ls.allocationInfo?.allocationMethod ?? null,
     getOptionLabel: (value: AllocationMethod) => formatAllocationMethodLabel(value) ?? value,
-    group: "queuePosition",
+    group: "allocationInfo",
     showInSort: false,
+    defaultState: { allowNull: true },
+  },
+  allocationInfo: {
+    type: "range",
+    id: "allocationInfo",
+    name: "Queue position",
+    key: (ls) => ls.allocationInfo?.myPosition ?? null,
+    boundType: "both",
+    stepSize: 1,
+    group: "allocationInfo",
     defaultState: { allowNull: true },
   },
   totalApplicants: {
     type: "range",
     id: "totalApplicants",
     name: "Total applicants",
-    key: (ls) => ls.queuePosition?.total ?? null,
+    key: (ls) => ls.allocationInfo?.total ?? null,
     boundType: "both",
     stepSize: 1,
-    group: "queuePosition",
+    group: "allocationInfo",
     defaultState: { allowNull: true },
   },
   longestQueueTimeDays: {
@@ -261,11 +277,11 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     id: "longestQueueTimeDays",
     name: "Longest queue time",
     unit: "days",
-    key: (ls) => daysSince(ls.queuePosition?.oldestQueueDates?.[0] ?? null),
-    sortKey: (ls) => descendingTimestamp(ls.queuePosition?.oldestQueueDates?.[0] ?? null),
+    key: (ls) => daysSince(ls.allocationInfo?.oldestQueueDates?.[0] ?? null),
+    sortKey: (ls) => descendingTimestamp(ls.allocationInfo?.oldestQueueDates?.[0] ?? null),
     boundType: "both",
     stepSize: 1,
-    group: "queuePosition",
+    group: "allocationInfo",
     defaultState: { allowNull: true },
   },
 

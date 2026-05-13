@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import httpx
 
 from app.models import (
+    AllocationInfo,
     AllocationMethod,
     ApartmentType,
     Coordinates,
@@ -20,7 +21,6 @@ from app.models import (
     ListingSources,
     ListingSourceStats,
     ListingsSearchOptions,
-    QueueStatus,
     Range,
     TenantRequirements,
     TenureType,
@@ -223,7 +223,7 @@ class _FixedRequestGate:
     def __init__(self, *, interval_seconds: float) -> None:
         self._interval_seconds = interval_seconds
         self._next_available_at = 0.0
-        self._lock = asyncio.Lock()
+        self._lock = asyncio.Lock()  # type: ignore[attr-defined]
 
     async def run(
         self,
@@ -521,7 +521,7 @@ class HomeQSource(ListingSource):
             detail.get("date_access")
         ) or _parse_homeq_lease_start(item.get("date_access"))
         lease_end_date = _parse_homeq_lease_end(detail)
-        queue_position = QueueStatus(
+        queue_position = AllocationInfo(
             allocation_method=_parse_allocation_method(detail.get("candidate_sorting_mode"))
         )
 
@@ -558,7 +558,7 @@ class HomeQSource(ListingSource):
             lease_start_date=lease_start_date,
             lease_end_date=lease_end_date,
             coords=coords,
-            queue_position=queue_position,
+            allocation_info=queue_position,
             requirements=_build_requirements(detail),
             date_posted=parse_iso_datetime(str(detail.get("date_publish")))
             if detail.get("date_publish")
@@ -632,7 +632,7 @@ class HomeQSource(ListingSource):
                 f"Missing required HomeQ project location for {source_local_id}"
             )
 
-        queue_position = QueueStatus(
+        queue_position = AllocationInfo(
             allocation_method=_parse_allocation_method(detail.get("candidate_sorting_mode"))
         )
         close_date = _parse_homeq_datetime(detail.get("close_date"))
@@ -669,7 +669,7 @@ class HomeQSource(ListingSource):
             date_posted=parse_iso_datetime(str(detail.get("publish_date")))
             if detail.get("publish_date")
             else None,
-            queue_position=queue_position,
+            allocation_info=queue_position,
             image_urls=image_urls,
             free_text=_merge_text_parts(freetext_parts),
             num_apartments=parse_optional_int(item.get("active_ads")),

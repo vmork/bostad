@@ -70,11 +70,12 @@ async def _parse_listing_task(
     item: dict[str, Any],
     client: httpx.AsyncClient,
     semaphore: asyncio.Semaphore,
-) -> tuple[int, Listing | None, ListingParseError | None]:
+) -> tuple[int, Listing | None, ListingParseError | None, str | None]:
 
     try:
         async with semaphore:
             listing = await source.parse_listing(item, client)
+        source_local_id = source.get_listing_id(item)
         # Normalize location fields from canonical geometry when coords land inside
         # known polygons. Keep source strings as a fallback outside that coverage.
         if listing.coords is not None:
@@ -84,7 +85,14 @@ async def _parse_listing_task(
                 if resolved_location.municipality_name is not None:
                     listing.loc_municipality = resolved_location.municipality_name
                 listing.loc_district = resolved_location.district_name
-        return index, listing, None
+        if listing.district_id is None:
+            logger.info(
+                "[%s] Skipping listing %s because no canonical district could be resolved",
+                source.source_id,
+                source_local_id,
+            )
+            return index, None, None, source_local_id
+        return index, listing, None, None
     except (ValidationError, Exception) as error:  # noqa: BLE001
         source_local_id = source.get_listing_id(item)
         logger.warning(
@@ -101,6 +109,7 @@ async def _parse_listing_task(
                 reason=str(error),
                 url=source.get_listing_url(item),
             ),
+            None,
         )
 
 
@@ -150,12 +159,14 @@ async def scrape_source_listings(
         completed = 0
 
         for completed_task in asyncio.as_completed(tasks):
-            index, listing, error = await completed_task
+            index, listing, error, skipped_source_local_id = await completed_task
             completed += 1  # noqa: SIM113
 
             if listing is not None:
                 indexed_listings.append((index, listing))
                 listing_id = listing.id
+            elif skipped_source_local_id is not None:
+                listing_id = f"{source.source_id}:{skipped_source_local_id}"
             else:
                 if error is None:
                     error = ListingParseError(

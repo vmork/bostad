@@ -5,4 +5,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListingApplicationDeadline = Date | null;
+export type AllocationInfoHasGoodChance = boolean | null;

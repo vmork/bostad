@@ -45,14 +45,14 @@ function SourceStatsPanel({ sourceStats }: { sourceStats: ListingSourceStats[] }
           href={stat.globalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-md border border-gs-3/50 bg-gs-1 px-3 py-2 text-xs text-dark"
+          className="rounded-md border border-gs-3/50 bg-gs-1 p-1.5 text-xs text-dark"
         >
           <span className="text-xs font-medium">{stat.name}:</span>
           <span className="ml-2 text-gs-3">{stat.numListings ?? 0} listings</span>
-          <span className="ml-1 text-gs-3">· {stat.numErrors ?? 0} errors</span>
-          <span className="ml-1 text-gs-3">
-            · {stat.loggedIn == null ? "Login unknown" : stat.loggedIn ? "Logged in" : "Logged out"}
-          </span>
+          {(stat.numErrors ?? 0) > 0 && (
+            <span className="ml-1 text-gs-3">· {stat.numErrors} errors</span>
+          )}
+          {stat.loggedIn && <span className="ml-1 text-gs-3">· Logged in</span>}
         </a>
       ))}
     </div>
@@ -136,7 +136,10 @@ export default function App() {
     [],
   );
 
-  const numApartments = listings.map((x) => x.numApartments ?? 0).reduce((a, b) => a + b, 0);
+  const numApartments = listings
+    .map((listing) => listing.numApartments ?? 1)
+    .reduce((total, count) => total + count, 0);
+  const apartmentsLabel = `(${numApartments} apts.)`;
 
   const _defaultSortEntries = useMemo(() => buildSortEntries(), []);
   const [filters, setFilters] = useState(() => hydrateFilters(storedFilterStates, listings));
@@ -180,24 +183,31 @@ export default function App() {
   // }
 
   return (
-    <div className="min-h-screen bg-background px-6 py-8 sm:px-8">
+    <div className="min-h-screen bg-background px-3 py-4 md:px-8 md:py-8">
       <div className="mx-auto max-w-4xl space-y-6">
         {/* Before listings */}
         <div className="mb-0">
           {/* Header */}
           <h1
             className={cn(
-              "text-2xl font-semibold text-dark grow",
+              "text-2xl font-semibold text-dark grow leading-tight",
               displayedListingsAreStale && "opacity-50",
             )}
           >
-            {listingsQuery.hasCachedData
-              ? `Showing ${displayedListings.length}/${listings.length} listings (${numApartments} apts.)`
-              : "No listings yet"}
+            {listingsQuery.hasCachedData ? (
+              <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span>{`Showing ${displayedListings.length}/${listings.length} listings`}</span>
+                <span className="basis-full text-sm font-medium text-gs-3 md:basis-auto md:text-2xl md:font-semibold md:text-dark">
+                  {apartmentsLabel}
+                </span>
+              </span>
+            ) : (
+              "No listings yet"
+            )}
           </h1>
 
           {/* Row 1: Refetch button and update info */}
-          <div className="flex items-center justify-between gap-3 mt-2">
+          <div className="mt-2 flex flex-col items-start gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
             <div className="">
               <RefetchButton
                 hasCachedData={listingsQuery.hasCachedData}
@@ -207,7 +217,7 @@ export default function App() {
               />
             </div>
             {listingsQuery.updatedAt && (
-              <p className="text-sm text-gs-3 mt-1">
+              <p className="text-sm text-gs-3 md:mt-1">
                 Updated {formatUpdatedAt(listingsQuery.updatedAt)}
                 {(listingsQuery.refreshDelta.added > 0 ||
                   listingsQuery.refreshDelta.removed > 0) && (
@@ -234,8 +244,8 @@ export default function App() {
 
           {/* Row 2: Source stats */}
           <div className="mt-2">
-            <div className="font-medium pb-0.5">Sources:</div>
-            <div className="ml-2">
+            <div className="font-medium pb-0.5">Sources</div>
+            <div className="">
               <SourceStatsPanel sourceStats={listingsQuery.sourceStats} />
             </div>
           </div>
@@ -254,7 +264,7 @@ export default function App() {
         {/* Controls + list */}
         <div className="space-y-2">
           {/* Filtering and sorting controls */}
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             {listingsQuery.hasCachedData && (
               <>
                 <FilterDropdown filters={displayFilters} setFilters={setFilters} />

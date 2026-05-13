@@ -263,8 +263,8 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
     assert listing.features.new_production is False
     assert listing.features.has_pictures is True
     assert listing.features.has_floorplan is False
-    assert listing.queue_position is not None
-    assert listing.queue_position.allocation_method == "queue_points"
+    assert listing.allocation_info is not None
+    assert listing.allocation_info.allocation_method == "queue_points"
 
 
 @pytest.mark.asyncio
@@ -394,8 +394,8 @@ async def test_homeq_parse_project_listing_builds_multi_apartment_listing() -> N
     assert listing.features.new_production is True
     assert listing.features.has_pictures is True
     assert listing.features.has_floorplan is False
-    assert listing.queue_position is not None
-    assert listing.queue_position.allocation_method == "application_date"
+    assert listing.allocation_info is not None
+    assert listing.allocation_info.allocation_method == "application_date"
     assert listing.image_urls == [
         "https://homeq-media-live.s3.amazonaws.com/project_images/306f.png",
         "https://homeq-media-live.s3.amazonaws.com/project_images/4e7b.jpeg",

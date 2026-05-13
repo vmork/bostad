@@ -9,9 +9,14 @@ import {
   useQuery
 } from '@tanstack/react-query';
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
+  QueryClient,
   QueryFunction,
   QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
   UseQueryOptions,
@@ -24,10 +29,6 @@ import type {
   ListingsSearchOptions
 } from '.././models';
 
-
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-      type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 
 
@@ -83,7 +84,7 @@ export const getAllListingsApiAllListingsGetQueryKey = () => {
     }
 
     
-export const getAllListingsApiAllListingsGetQueryOptions = <TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>, fetch?: RequestInit}
+export const getAllListingsApiAllListingsGetQueryOptions = <TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -98,25 +99,49 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
       
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type AllListingsApiAllListingsGetQueryResult = NonNullable<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>>
 export type AllListingsApiAllListingsGetQueryError = unknown
 
 
+export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsApiAllListingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsApiAllListingsGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsApiAllListingsGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsApiAllListingsGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary All Listings
  */
 
 export function useAllListingsApiAllListingsGet<TData = Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError = unknown>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>, fetch?: RequestInit}
-  
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsApiAllListingsGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getAllListingsApiAllListingsGetQueryOptions(options)
 
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey ;
 
@@ -211,7 +236,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
  */
 export const useAllListingsPostApiAllListingsPost = <TError = HTTPValidationError,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
- ): UseMutationResult<
+ , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof allListingsPostApiAllListingsPost>>,
         TError,
         {data: ListingsSearchOptions},
@@ -220,7 +245,7 @@ export const useAllListingsPostApiAllListingsPost = <TError = HTTPValidationErro
 
       const mutationOptions = getAllListingsPostApiAllListingsPostMutationOptions(options);
 
-      return useMutation(mutationOptions);
+      return useMutation(mutationOptions, queryClient);
     }
     /**
  * @summary All Listings Stream
@@ -273,7 +298,7 @@ export const getAllListingsStreamApiAllListingsStreamGetQueryKey = () => {
     }
 
     
-export const getAllListingsStreamApiAllListingsStreamGetQueryOptions = <TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>, fetch?: RequestInit}
+export const getAllListingsStreamApiAllListingsStreamGetQueryOptions = <TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
 ) => {
 
 const {query: queryOptions, fetch: fetchOptions} = options ?? {};
@@ -288,25 +313,49 @@ const {query: queryOptions, fetch: fetchOptions} = options ?? {};
 
       
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
 export type AllListingsStreamApiAllListingsStreamGetQueryResult = NonNullable<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>>
 export type AllListingsStreamApiAllListingsStreamGetQueryError = unknown
 
 
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>,
+          TError,
+          Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>
+        > , 'initialData'
+      >, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary All Listings Stream
  */
 
 export function useAllListingsStreamApiAllListingsStreamGet<TData = Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError = unknown>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>, fetch?: RequestInit}
-  
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof allListingsStreamApiAllListingsStreamGet>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getAllListingsStreamApiAllListingsStreamGetQueryOptions(options)
 
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
   query.queryKey = queryOptions.queryKey ;
 
@@ -401,7 +450,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
  */
 export const useAllListingsStreamPostApiAllListingsStreamPost = <TError = HTTPValidationError,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>, TError,{data: ListingsSearchOptions}, TContext>, fetch?: RequestInit}
- ): UseMutationResult<
+ , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof allListingsStreamPostApiAllListingsStreamPost>>,
         TError,
         {data: ListingsSearchOptions},
@@ -410,6 +459,6 @@ export const useAllListingsStreamPostApiAllListingsStreamPost = <TError = HTTPVa
 
       const mutationOptions = getAllListingsStreamPostApiAllListingsStreamPostMutationOptions(options);
 
-      return useMutation(mutationOptions);
+      return useMutation(mutationOptions, queryClient);
     }
     

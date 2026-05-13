@@ -99,22 +99,22 @@ const ListingUI = memo(function ListingUI({
   const hasTimingInfo =
     lg.leaseStartDate != null || lg.leaseEndDate != null || lg.applicationDeadlineDate != null;
 
-  const longestQueueTimeMs = lg.queuePosition?.oldestQueueDates
-    ? Date.now() - new Date(lg.queuePosition.oldestQueueDates[0]).getTime()
+  const longestQueueTimeMs = lg.allocationInfo?.oldestQueueDates
+    ? Date.now() - new Date(lg.allocationInfo.oldestQueueDates[0]).getTime()
     : null;
 
   const hasQueueInfo =
-    lg.queuePosition?.allocationMethod != null ||
-    (lg.queuePosition?.myPosition != null && lg.queuePosition?.total != null) ||
+    lg.allocationInfo?.allocationMethod != null ||
+    (lg.allocationInfo?.myPosition != null && lg.allocationInfo?.total != null) ||
     longestQueueTimeMs !== null ||
-    lg.queuePosition?.hasGoodChance === true;
+    lg.allocationInfo?.hasGoodChance === true;
 
   return (
     <div className="rounded-lg border border-gs-3/50 bg-gs-0/50 px-2 py-2 flex flex-col relative">
       {/* Row 1: header */}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 items-center sm:grid-rows-1">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 md:items-center md:grid-rows-1">
         {/* title (street name) */}
-        <div className="min-w-0 flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex flex-col gap-0.5 md:flex-row md:flex-wrap md:items-center md:gap-2">
           <span className="min-w-0 text-lg font-medium w-fit">
             <a
               href={lg.url}
@@ -125,15 +125,15 @@ const ListingUI = memo(function ListingUI({
               {lg.name}
             </a>
           </span>
-          <span className="text-xs text-gs-3">({sourceName})</span>
+          <span className="text-xs text-gs-3 md:self-auto">({sourceName})</span>
         </div>
         {/* location */}
-        <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+        <div className="col-span-2 row-start-2 min-w-0 md:col-span-1 md:col-start-2 md:row-start-1">
           <ListingLocationPreview listing={lg} />
         </div>
         {/* recency */}
         {timeSincePost !== null && (
-          <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-sm text-gs-3 sm:col-start-3 sm:row-start-1">
+          <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-sm text-gs-3 md:col-start-3 md:row-start-1">
             {formatDuration(timeSincePost)}
             {isNew && <span className="text-primary ml-1.5 font-medium">(new)</span>}
           </span>
@@ -218,23 +218,23 @@ const ListingUI = memo(function ListingUI({
           <div className="flex items-start gap-1.5">
             <SectionIcon kind="queue" />
             <div className="flex flex-wrap gap-1.5">
-              {lg.queuePosition?.allocationMethod != null && (
+              {lg.allocationInfo?.allocationMethod != null && (
                 <Pill>
-                  Method: {formatAllocationMethodLabel(lg.queuePosition.allocationMethod)}
+                  Method: {formatAllocationMethodLabel(lg.allocationInfo.allocationMethod)}
                 </Pill>
               )}
-              {lg.queuePosition?.myPosition !== undefined &&
-                lg.queuePosition?.myPosition !== null &&
-                lg.queuePosition?.total !== undefined &&
-                lg.queuePosition?.total !== null && (
+              {lg.allocationInfo?.myPosition !== undefined &&
+                lg.allocationInfo?.myPosition !== null &&
+                lg.allocationInfo?.total !== undefined &&
+                lg.allocationInfo?.total !== null && (
                   <Pill>
-                    Position: {lg.queuePosition.myPosition} / {lg.queuePosition.total}
+                    Position: {lg.allocationInfo.myPosition} / {lg.allocationInfo.total}
                   </Pill>
                 )}
               {longestQueueTimeMs !== null && (
                 <Pill>Longest: {Math.floor(longestQueueTimeMs / (1000 * 3600 * 24))} days</Pill>
               )}
-              {lg.queuePosition?.hasGoodChance === true && (
+              {lg.allocationInfo?.hasGoodChance === true && (
                 <Pill type="highlight-green">Good chance</Pill>
               )}
             </div>

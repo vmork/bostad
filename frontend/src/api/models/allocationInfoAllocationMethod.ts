@@ -6,4 +6,4 @@
  */
 import type { AllocationMethod } from './allocationMethod';
 
-export type QueueStatusAllocationMethod = AllocationMethod | null;
+export type AllocationInfoAllocationMethod = AllocationMethod | null;
