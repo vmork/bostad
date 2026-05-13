@@ -9,19 +9,22 @@ import httpx
 from bs4 import BeautifulSoup, Tag
 
 from app.models import (
+    AllocationMethod,
     ApartmentType,
     BostadSthlmSearchOptions,
     CamelModel,
     Coordinates,
-    DateRange,
+    LeaseEndDateValue,
+    LeaseStartDateValue,
     Listing,
     ListingFeatures,
     ListingSources,
     ListingSourceStats,
     ListingsSearchOptions,
-    QueuePosition,
+    QueueStatus,
     Range,
     TenantRequirements,
+    TenureType,
 )
 from app.scraping.scrape_utils import (
     ListingParseException,
@@ -57,6 +60,11 @@ VIEWING_POSITIVE_RE = re.compile(
     re.IGNORECASE,
 )
 NEGATION_PREFIXES = ("ej ", "inte ", "ingen ", "inget ", "utan ", "saknar ")
+CONTRACT_START_RE = re.compile(r"Från:\s*([^\s<]+)", re.IGNORECASE)
+CONTRACT_END_RE = re.compile(r"Till:\s*([^\s<]+)", re.IGNORECASE)
+LEASE_START_ASAP_MARKERS = {"asap", "snarast"}
+LEASE_END_INDEFINITE_MARKERS = {"tillsvidare", "tills_vidare", "indefinite"}
+DATE_NULL_MARKERS = {"undefined"}
 
 
 # Browser-like defaults used by both index and detail requests.
@@ -77,8 +85,9 @@ DEFAULT_HEADERS = {
 
 
 class _ScrapedListingPageData(CamelModel):
-    rental_period: DateRange | None = None
-    queue_position: QueuePosition | None = None
+    lease_start_date: LeaseStartDateValue | None = None
+    lease_end_date: LeaseEndDateValue | None = None
+    queue_position: QueueStatus | None = None
     requirements: TenantRequirements | None = None
     image_urls: list[str] | None = None
     floorplan_url: str | None = None
@@ -140,6 +149,91 @@ def _extract_free_text(soup: BeautifulSoup) -> str | None:
 
     free_text = "\n\n".join(parts)
     return free_text or None
+
+
+def _extract_apartment_fact_value(soup: BeautifulSoup, label: str) -> str | None:
+    normalized_label = label.strip().lower()
+    for label_el in soup.select(".apartment-facts__text"):
+        if label_el.get_text(strip=True).lower() != normalized_label:
+            continue
+
+        value_el = label_el.find_next_sibling(class_="apartment-facts__heading")
+        if value_el is None:
+            continue
+
+        value = value_el.get_text(" ", strip=True)
+        return value or None
+
+    return None
+
+
+def _parse_listing_date_value(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    if normalized.lower().replace(" ", "_") in DATE_NULL_MARKERS:
+        return None
+
+    return parse_iso_datetime(normalized)
+
+
+def _parse_lease_start_value(value: str | None) -> LeaseStartDateValue | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    marker = normalized.lower().replace(" ", "_")
+    if marker in LEASE_START_ASAP_MARKERS:
+        return "asap"
+    if marker in DATE_NULL_MARKERS or marker in LEASE_END_INDEFINITE_MARKERS:
+        return None
+
+    parsed = parse_iso_datetime(normalized)
+    return parsed.date().isoformat() if parsed is not None else None
+
+
+def _parse_lease_end_value(value: str | None) -> LeaseEndDateValue | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    marker = normalized.lower().replace(" ", "_")
+    if marker in LEASE_END_INDEFINITE_MARKERS:
+        return "indefinite"
+    if marker in DATE_NULL_MARKERS or marker in LEASE_START_ASAP_MARKERS:
+        return None
+
+    parsed = parse_iso_datetime(normalized)
+    return parsed.date().isoformat() if parsed is not None else None
+
+
+def _extract_lease_dates(
+    soup: BeautifulSoup,
+) -> tuple[LeaseStartDateValue | None, LeaseEndDateValue | None]:
+    fact_start_date = _parse_lease_start_value(_extract_apartment_fact_value(soup, "Inflytt"))
+    contract_text = _extract_section_text(soup, "Om kontraktet")
+    contract_start = CONTRACT_START_RE.search(contract_text)
+    contract_end = CONTRACT_END_RE.search(contract_text)
+
+    lease_start_date = (
+        _parse_lease_start_value(contract_start.group(1))
+        if contract_start is not None
+        else fact_start_date
+    )
+    lease_end_date = (
+        _parse_lease_end_value(contract_end.group(1)) if contract_end is not None else None
+    )
+    return lease_start_date, lease_end_date
 
 
 def _extract_requirement_items(soup: BeautifulSoup) -> list[str]:
@@ -258,7 +352,7 @@ def _extract_requirements(soup: BeautifulSoup) -> TenantRequirements | None:
     )
 
 
-def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition | None:
+def _extract_queue_position(soup: BeautifulSoup) -> QueueStatus | None:
     my_position: int | None = None
     total: int | None = None
     oldest_queue_dates: list[datetime] = []
@@ -325,23 +419,23 @@ def _extract_queue_position(soup: BeautifulSoup) -> QueuePosition | None:
         break
 
     if oldest_queue_dates or my_position is not None or total is not None:
-        return QueuePosition(
+        return QueueStatus(
             my_position=my_position,
             total=total,
             oldest_queue_dates=oldest_queue_dates or None,
+            allocation_method=AllocationMethod.QUEUE_POINTS,
         )
 
     return None
 
 
-def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueuePosition | None:
+def _extract_queue_signals_from_json(data: dict[str, Any]) -> QueueStatus:
     has_good_chance_raw = data.get("HarBraChans")
     has_good_chance = bool(has_good_chance_raw) if isinstance(has_good_chance_raw, bool) else None
-
-    if has_good_chance is None:
-        return None
-
-    return QueuePosition(has_good_chance=has_good_chance)
+    return QueueStatus(
+        has_good_chance=has_good_chance,
+        allocation_method=AllocationMethod.QUEUE_POINTS,
+    )
 
 
 def _normalize_feature_label(label: str) -> str:
@@ -488,8 +582,12 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
     num_apartments = data.get("Antal")
     rent_range = Range(min=data.get("LägstaHyran"), max=data.get("HögstaHyran"))
     area_sqm_range = Range(min=data.get("LägstaYtan"), max=data.get("HögstaYtan"))
-    date_posted = data.get("AnnonseradFran")
-    application_deadline = data.get("AnnonseradTill")
+    date_posted = (
+        parse_iso_datetime(str(data.get("AnnonseradFran"))) if data.get("AnnonseradFran") else None
+    )
+    application_deadline_date = (
+        parse_iso_datetime(str(data.get("AnnonseradTill"))) if data.get("AnnonseradTill") else None
+    )
     floor = data.get("Vaning")
     queue_position = _extract_queue_signals_from_json(data)
     features = ListingFeatures(
@@ -511,11 +609,12 @@ def _scrape_listing_json(data: dict[str, Any]) -> Listing:
         area_sqm=area_sqm,
         num_rooms=num_rooms,
         apartment_type=apartment_type,
+        tenure_type=TenureType.FIRST_HAND,
         floor=floor,
         features=features,
         queue_position=queue_position,
         date_posted=date_posted,
-        application_deadline=application_deadline,
+        application_deadline_date=application_deadline_date,
         num_apartments=num_apartments,
         rent_range=rent_range,
         area_sqm_range=area_sqm_range,
@@ -526,7 +625,10 @@ def _scrape_listing_html(html: str) -> _ScrapedListingPageData:
     soup = BeautifulSoup(html, "html.parser")
     features = _extract_html_listing_features(soup)
     features.has_viewing = _extract_has_viewing(soup)
+    lease_start_date, lease_end_date = _extract_lease_dates(soup)
     return _ScrapedListingPageData.model_validate({
+        "lease_start_date": lease_start_date,
+        "lease_end_date": lease_end_date,
         "queue_position": _extract_queue_position(soup),
         "requirements": _extract_requirements(soup),
         "image_urls": _extract_image_urls(soup),
@@ -595,6 +697,11 @@ async def parse_listing_async(
                         if scraped_data.queue_position.oldest_queue_dates is not None
                         else listing.queue_position.oldest_queue_dates
                     ),
+                    "allocation_method": (
+                        scraped_data.queue_position.allocation_method
+                        if scraped_data.queue_position.allocation_method is not None
+                        else listing.queue_position.allocation_method
+                    ),
                 }
             )
 
@@ -621,6 +728,7 @@ async def parse_listing_async(
     )
 
     return listing
+
 
 class BostadSthlmSource(ListingSource):
     """Source implementation for bostad.stockholm.se listings."""

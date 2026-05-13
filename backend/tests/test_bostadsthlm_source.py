@@ -16,8 +16,10 @@ FIXTURE_DIR = Path(__file__).with_name("data") / "bostadsthlm"
 
 # Fixture helpers
 
+
 def _read_fixture(name: str) -> str:
     return (FIXTURE_DIR / name).read_text()
+
 
 def _build_listing_json(annons_id: int, **overrides: object) -> dict[str, object]:
     listing_json: dict[str, object] = {
@@ -50,6 +52,7 @@ def _build_listing_json(annons_id: int, **overrides: object) -> dict[str, object
     }
     listing_json.update(overrides)
     return listing_json
+
 
 def test_scrape_listing_json_adds_source_identity() -> None:
     listing = _scrape_listing_json({
@@ -85,6 +88,7 @@ def test_scrape_listing_json_adds_source_identity() -> None:
     assert listing.source == ListingSources.BOSTAD_STHLM
     assert listing.source_local_id == "123"
 
+
 def test_extract_requirements_supports_logged_in_accordion_markup() -> None:
     soup = BeautifulSoup(
         """
@@ -111,6 +115,7 @@ def test_extract_requirements_supports_logged_in_accordion_markup() -> None:
     assert requirements.num_tenants_range is not None
     assert requirements.num_tenants_range.max == 2
 
+
 def test_extract_requirements_prefers_housing_type_section_for_age_fallback() -> None:
     soup = BeautifulSoup(
         """
@@ -131,7 +136,9 @@ def test_extract_requirements_prefers_housing_type_section_for_age_fallback() ->
     assert requirements.age_range.min == 18
     assert requirements.age_range.max == 25
 
+
 # Real fixture coverage
+
 
 def test_scrape_listing_html_extracts_regular_listing_details_from_fixture() -> None:
     parsed = _scrape_listing_html(_read_fixture("regular_202608056_loggedout.html"))
@@ -206,6 +213,10 @@ def test_scrape_listing_html_keeps_youth_requirements_consistent_across_auth_sta
     assert logged_out.floor_range is not None
     assert logged_in.floor_range is not None
     assert logged_out.floor_range.model_dump() == logged_in.floor_range.model_dump()
+    assert logged_out.lease_start_date == "2026-07-01"
+    assert logged_out.lease_start_date == logged_in.lease_start_date
+    assert logged_out.lease_end_date == "indefinite"
+    assert logged_in.lease_end_date == "indefinite"
 
 
 def test_scrape_listing_html_only_exposes_my_queue_position_for_logged_in_fixture() -> None:
@@ -214,6 +225,8 @@ def test_scrape_listing_html_only_exposes_my_queue_position_for_logged_in_fixtur
 
     assert logged_out.queue_position is not None
     assert logged_in.queue_position is not None
+    assert logged_out.queue_position.allocation_method == "queue_points"
+    assert logged_in.queue_position.allocation_method == "queue_points"
     assert (
         logged_out.queue_position.oldest_queue_dates == logged_in.queue_position.oldest_queue_dates
     )

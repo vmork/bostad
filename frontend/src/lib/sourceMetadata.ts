@@ -20,6 +20,10 @@ export const sourceMetadataById: Record<ListingSourceId, SourceMetadata> = {
     name: "HomeQ",
     globalUrl: "https://www.homeq.se",
   },
+  [ListingSources.qasa]: {
+    name: "Qasa",
+    globalUrl: "https://qasa.com/se/en",
+  },
 };
 
 export function mergeSourceMetadata(

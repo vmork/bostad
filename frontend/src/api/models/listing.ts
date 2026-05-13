@@ -6,11 +6,14 @@
  */
 import type { ListingSources } from './listingSources';
 import type { ListingApartmentType } from './listingApartmentType';
+import type { ListingFurnishing } from './listingFurnishing';
+import type { ListingTenureType } from './listingTenureType';
 import type { ListingFeatures } from './listingFeatures';
 import type { ListingFloor } from './listingFloor';
-import type { ListingRentalPeriod } from './listingRentalPeriod';
+import type { ListingLeaseStartDate } from './listingLeaseStartDate';
+import type { ListingLeaseEndDate } from './listingLeaseEndDate';
 import type { ListingCoords } from './listingCoords';
-import type { ListingApplicationDeadline } from './listingApplicationDeadline';
+import type { ListingApplicationDeadlineDate } from './listingApplicationDeadlineDate';
 import type { ListingQueuePosition } from './listingQueuePosition';
 import type { ListingRequirements } from './listingRequirements';
 import type { ListingDatePosted } from './listingDatePosted';
@@ -35,11 +38,14 @@ export interface Listing {
   areaSqm: number;
   numRooms: number;
   apartmentType: ListingApartmentType;
+  furnishing?: ListingFurnishing;
+  tenureType?: ListingTenureType;
   features?: ListingFeatures;
   floor: ListingFloor;
-  rentalPeriod?: ListingRentalPeriod;
+  leaseStartDate?: ListingLeaseStartDate;
+  leaseEndDate?: ListingLeaseEndDate;
   coords?: ListingCoords;
-  applicationDeadline?: ListingApplicationDeadline;
+  applicationDeadlineDate?: ListingApplicationDeadlineDate;
   queuePosition?: ListingQueuePosition;
   requirements?: ListingRequirements;
   datePosted?: ListingDatePosted;

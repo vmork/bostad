@@ -1,6 +1,15 @@
 import type { Listing, Range } from "../api/models";
-import { UserRoundIcon, Clock3Icon, InfoIcon, PlusIcon } from "lucide-react";
-import { formatDuration, numberWithSuffix } from "../lib/utils";
+import { CalendarDaysIcon, UserRoundIcon, InfoIcon, ListOrderedIcon, PlusIcon } from "lucide-react";
+import {
+  formatAllocationMethodLabel,
+  formatDuration,
+  formatFurnishingLabel,
+  formatLeaseEndLabel,
+  formatLeaseStartLabel,
+  formatShortDate,
+  formatTenureTypeLabel,
+  numberWithSuffix,
+} from "../lib/utils";
 import { Pill } from "./generic/Pill";
 import { memo } from "react";
 import { ListingLocationPreview } from "./ListingLocationPreview";
@@ -23,7 +32,7 @@ function formatRangeString(range: Range): string {
   return "";
 }
 
-type SectionIconKind = "info" | "extras" | "requirements" | "queue";
+type SectionIconKind = "info" | "timing" | "extras" | "requirements" | "queue";
 
 function SectionIcon({ kind }: { kind: SectionIconKind }) {
   const iconByKind: Record<
@@ -31,9 +40,10 @@ function SectionIcon({ kind }: { kind: SectionIconKind }) {
     React.ComponentType<{ className?: string; strokeWidth?: number }>
   > = {
     info: InfoIcon,
+    timing: CalendarDaysIcon,
     extras: PlusIcon,
     requirements: UserRoundIcon,
-    queue: Clock3Icon,
+    queue: ListOrderedIcon,
   };
   const Icon = iconByKind[kind];
 
@@ -68,6 +78,10 @@ const ListingUI = memo(function ListingUI({
     lg.features?.bathroom === false ? "No bathroom" : null,
   ].filter((value): value is string => value !== null);
 
+  const infoExtras = [formatTenureTypeLabel(lg.tenureType), formatFurnishingLabel(lg.furnishing)].filter(
+    (value): value is string => value != null && value.trim().length > 0,
+  );
+
   // Only show appliance extras when they are explicitly present.
   const bonusFeatures = [
     lg.features?.dishwasher ? "Dishwasher" : null,
@@ -78,15 +92,19 @@ const ListingUI = memo(function ListingUI({
     lg.features?.hasViewing === true ? "Viewing" : null,
     lg.features?.hasPictures ? `Pictures (${lg.features.numPictures ?? 0})` : null,
     lg.features?.hasFloorplan ? "Floorplan" : null,
-  ].filter((value): value is string => value !== null);
+  ].filter((value): value is string => value != null && value.trim().length > 0);
 
   const hasExtraFeatures = missingCriticalFeatures.length > 0 || bonusFeatures.length > 0;
+
+  const hasTimingInfo =
+    lg.leaseStartDate != null || lg.leaseEndDate != null || lg.applicationDeadlineDate != null;
 
   const longestQueueTimeMs = lg.queuePosition?.oldestQueueDates
     ? Date.now() - new Date(lg.queuePosition.oldestQueueDates[0]).getTime()
     : null;
 
   const hasQueueInfo =
+    lg.queuePosition?.allocationMethod != null ||
     (lg.queuePosition?.myPosition != null && lg.queuePosition?.total != null) ||
     longestQueueTimeMs !== null ||
     lg.queuePosition?.hasGoodChance === true;
@@ -151,8 +169,27 @@ const ListingUI = memo(function ListingUI({
             ) : (
               lg.floor != null && <Pill>{numberWithSuffix(lg.floor)} floor</Pill>
             )}
+            {infoExtras.map((label) => (
+              <Pill key={label}>{label}</Pill>
+            ))}
           </div>
         </div>
+
+        {/* timing */}
+        {hasTimingInfo && (
+          <div className="flex items-start gap-1.5">
+            <SectionIcon kind="timing" />
+            <div className="flex flex-wrap gap-1.5">
+              {lg.leaseStartDate != null && (
+                <Pill>Start: {formatLeaseStartLabel(lg.leaseStartDate)}</Pill>
+              )}
+              {lg.leaseEndDate != null && <Pill>End: {formatLeaseEndLabel(lg.leaseEndDate)}</Pill>}
+              {lg.applicationDeadlineDate != null && (
+                <Pill>Deadline: {formatShortDate(lg.applicationDeadlineDate)}</Pill>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* requirements */}
         {hasRequirements && (
@@ -181,6 +218,11 @@ const ListingUI = memo(function ListingUI({
           <div className="flex items-start gap-1.5">
             <SectionIcon kind="queue" />
             <div className="flex flex-wrap gap-1.5">
+              {lg.queuePosition?.allocationMethod != null && (
+                <Pill>
+                  Method: {formatAllocationMethodLabel(lg.queuePosition.allocationMethod)}
+                </Pill>
+              )}
               {lg.queuePosition?.myPosition !== undefined &&
                 lg.queuePosition?.myPosition !== null &&
                 lg.queuePosition?.total !== undefined &&

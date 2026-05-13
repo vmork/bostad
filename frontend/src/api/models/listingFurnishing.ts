@@ -4,6 +4,6 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
-import type { QueueStatus } from './queueStatus';
+import type { FurnishingLevel } from './furnishingLevel';
 
-export type ListingQueuePosition = QueueStatus | null;
+export type ListingFurnishing = FurnishingLevel | null;

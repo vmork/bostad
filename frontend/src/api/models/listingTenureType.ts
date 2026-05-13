@@ -4,6 +4,6 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
-import type { QueueStatus } from './queueStatus';
+import type { TenureType } from './tenureType';
 
-export type ListingQueuePosition = QueueStatus | null;
+export type ListingTenureType = TenureType | null;

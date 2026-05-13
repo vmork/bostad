@@ -21,15 +21,11 @@
       - second_hand_private
       - second_hand_shared (for corridor or coliving)
 
-- map:
-  - improve map popup ui
-    - dropdowns should be centered, not left/right aligned
-  - better styling of dots
-  - clicking dots link to url
-  - popup for dots stays when hovering over it
+- add some filters to refetch options to save time
+  - need to be per-source as they have different allowed request filters, look into exact structure
+    for homeq and qasa
 
 - filters
-  - allow null for more (most) filters, ie queue data
   - move map trigger inside filter dropdown, also show num regions/districts
   - move filters to sidebar on large screens, (modal on small screens?)
 
@@ -49,6 +45,4 @@
   - save/favorite listings to personal collection
     - implement for now with localstorage, later accounts
   - "bevakning", feed of filtered new listings sorted by recent
-  - hosting
-  - accounts (after hosting)
-  - autofetch once a day in background (after hosting)
+  - accounts

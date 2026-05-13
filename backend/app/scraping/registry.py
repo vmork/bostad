@@ -1,11 +1,13 @@
 from app.models import ListingSources
 from app.scraping.sources.bostadsthlm import BostadSthlmSource
 from app.scraping.sources.homeq import HomeQSource
+from app.scraping.sources.qasa import QasaSource
 from app.scraping.types import ListingSource
 
 _SOURCES: dict[ListingSources, ListingSource] = {
     ListingSources.BOSTAD_STHLM: BostadSthlmSource(),
     ListingSources.HOMEQ: HomeQSource(),
+    ListingSources.QASA: QasaSource(),
 }
 
 

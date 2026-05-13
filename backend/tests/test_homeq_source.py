@@ -187,6 +187,7 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
             "longitude": "18.0572920",
             "latitude": "59.3506306",
             "date_publish": "2026-04-22",
+            "tenantBaseFee": 500,
             "discount": None,
             "new_production": False,
             "project_id": None,
@@ -239,7 +240,7 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
     assert listing.name == "Birger Jarlsgatan 127"
     assert listing.loc_municipality == "Stockholm"
     assert listing.loc_district == "Stockholm"
-    assert listing.rent == 10388
+    assert listing.rent == 10888
     assert listing.area_sqm == 55
     assert listing.num_rooms == 2
     assert listing.apartment_type == "regular"
@@ -248,9 +249,8 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
     assert listing.coords.lat == 59.3506306
     assert listing.coords.long == 18.057292
     assert listing.date_posted == datetime.fromisoformat("2026-04-22")
-    assert listing.rental_period is not None
-    assert listing.rental_period.min == datetime.fromisoformat("2030-06-30")
-    assert listing.rental_period.max == datetime.fromisoformat("2030-06-30")
+    assert listing.lease_start_date == "2026-07-01"
+    assert listing.lease_end_date == "2030-06-30"
     assert listing.free_text is not None
     assert "Lägenhet är belägen nära intill grönområden" in listing.free_text
     assert "Staren 11 är en klassisk bostadsfastighet" in listing.free_text
@@ -263,7 +263,8 @@ async def test_homeq_parse_individual_listing_uses_object_payload_only() -> None
     assert listing.features.new_production is False
     assert listing.features.has_pictures is True
     assert listing.features.has_floorplan is False
-    assert listing.queue_position is None
+    assert listing.queue_position is not None
+    assert listing.queue_position.allocation_method == "queue_points"
 
 
 @pytest.mark.asyncio
@@ -387,9 +388,14 @@ async def test_homeq_parse_project_listing_builds_multi_apartment_listing() -> N
     assert listing.coords.lat == 59.4038659
     assert listing.coords.long == 17.8557312
     assert listing.date_posted == datetime.fromisoformat("2025-06-25")
+    assert listing.lease_start_date == "2025-12-01"
+    assert listing.lease_end_date == "indefinite"
+    assert listing.application_deadline_date is None
     assert listing.features.new_production is True
     assert listing.features.has_pictures is True
     assert listing.features.has_floorplan is False
+    assert listing.queue_position is not None
+    assert listing.queue_position.allocation_method == "application_date"
     assert listing.image_urls == [
         "https://homeq-media-live.s3.amazonaws.com/project_images/306f.png",
         "https://homeq-media-live.s3.amazonaws.com/project_images/4e7b.jpeg",

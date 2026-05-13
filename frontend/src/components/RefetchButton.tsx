@@ -18,6 +18,7 @@ const defaultSearchOptions: ListingsStreamOptions = {
   sources: DEFAULT_LISTING_SOURCES,
   bostadsthlm: {},
   homeq: {},
+  qasa: {},
 };
 
 type SourceId = (typeof ListingSources)[keyof typeof ListingSources];
@@ -43,6 +44,7 @@ function normalizeSearchOptions(options: ListingsSearchOptions): ListingsSearchO
     sources: options.sources?.length ? options.sources : DEFAULT_LISTING_SOURCES,
     bostadsthlm: options.bostadsthlm ?? {},
     homeq: options.homeq ?? {},
+    qasa: options.qasa ?? {},
   };
 }
 
@@ -82,6 +84,16 @@ function DataSettings({
       ...normalizedOptions,
       homeq: {
         ...normalizedOptions.homeq,
+        ...update,
+      },
+    });
+  };
+
+  const updateQasaOptions = (update: NonNullable<ListingsSearchOptions["qasa"]>) => {
+    setSearchOptions({
+      ...normalizedOptions,
+      qasa: {
+        ...normalizedOptions.qasa,
         ...update,
       },
     });
@@ -129,6 +141,21 @@ function DataSettings({
         },
       ],
     },
+    {
+      id: ListingSources.qasa,
+      fields: [
+        {
+          id: "max-listings",
+          label: "Max listings",
+          type: "number",
+          placeholder: "∞",
+          min: 1,
+          inputClassName: "w-15 justify-self-end",
+          value: normalizedOptions.qasa?.maxListings,
+          onChange: (value) => updateQasaOptions({ maxListings: value ? parseInt(value, 10) : undefined }),
+        },
+      ],
+    },
   ];
 
   return (
@@ -160,7 +187,7 @@ function DataSettings({
                   </a>
                 </div>
 
-                <div className="space-y-2 border-t border-gs-2/80 px-3 py-3">
+                <div className="space-y-2 border-b border-gs-2 px-3 py-2">
                   <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
                     {section.fields.map((field) => (
                       <div key={`${section.id}-${field.id}`} className="contents">

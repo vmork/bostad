@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -25,18 +25,28 @@ class Range(CamelModel):
     max: float | None = None
 
 
-class DateRange(CamelModel):
-    min: datetime | None = None
-    max: datetime | None = None
+class AllocationMethod(StrEnum):
+    QUEUE_POINTS = "queue_points"
+    RANDOM = "random"
+    APPLICATION_DATE = "application_date"
+    MANUAL_REQUEST = "manual_request"
+    UNKNOWN = "unknown"
 
 
-class QueuePosition(CamelModel):
+class FurnishingLevel(StrEnum):
+    FULL = "full"
+    PARTIAL = "partial"
+    NONE = "none"
+
+
+class QueueStatus(CamelModel):
     my_position: int | None = None
     total: int | None = None
     oldest_queue_dates: list[datetime] | None = (
-        None  # sorted array of oldest queue dates, olest first
+        None  # sorted array of oldest queue dates, oldest first
     )
     has_good_chance: bool | None = None
+    allocation_method: AllocationMethod | None = None
 
 
 class TenantRequirements(CamelModel):
@@ -47,6 +57,14 @@ class TenantRequirements(CamelModel):
 
 
 ApartmentType = Literal["regular", "youth", "student", "senior"]
+LeaseStartDateValue = Literal["asap"] | str
+LeaseEndDateValue = Literal["indefinite"] | str
+
+
+class TenureType(StrEnum):
+    FIRST_HAND = "first_hand"
+    SECOND_HAND_PRIVATE = "second_hand_private"
+    SECOND_HAND_SHARED = "second_hand_shared"
 
 
 class ListingSources(StrEnum):
@@ -54,6 +72,7 @@ class ListingSources(StrEnum):
 
     BOSTAD_STHLM = "bostadsthlm"
     HOMEQ = "homeq"
+    QASA = "qasa"
 
 
 class ListingSourceStats(CamelModel):
@@ -102,16 +121,19 @@ class Listing(CamelModel):
     area_sqm: float  # minimum area for multi-ap listings
     num_rooms: float  # minimum number of rooms for multi-ap listings
     apartment_type: ApartmentType
+    furnishing: FurnishingLevel | None = None
+    tenure_type: TenureType | None = None
     features: ListingFeatures = Field(default_factory=ListingFeatures)
 
     # Misc
     floor: (
         float | None
     )  # under "Vaning", can be negative or fractional, absent only for multi-apt listings
-    rental_period: DateRange | None = None
+    lease_start_date: LeaseStartDateValue | None = None
+    lease_end_date: LeaseEndDateValue | None = None
     coords: Coordinates | None = None
-    application_deadline: datetime | None = None
-    queue_position: QueuePosition | None = None
+    application_deadline_date: datetime | None = None
+    queue_position: QueueStatus | None = None
     requirements: TenantRequirements | None = None
     date_posted: datetime | None = None
     image_urls: list[str] | None = None
@@ -124,6 +146,30 @@ class Listing(CamelModel):
     rent_range: Range | None = None
     area_sqm_range: Range | None = None
     floor_range: Range | None = None  # floor range for multi-apartment listings
+
+    @field_validator("lease_start_date", mode="before")
+    @classmethod
+    def _normalize_lease_start_date(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+        raise TypeError("Unsupported lease_start_date value")
+
+    @field_validator("lease_end_date", mode="before")
+    @classmethod
+    def _normalize_lease_end_date(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+        raise TypeError("Unsupported lease_end_date value")
 
 
 class ListingParseError(CamelModel):
@@ -176,6 +222,12 @@ class HomeQSearchOptions(CamelModel):
     # TODO: auth cookie
 
 
+class QasaSearchOptions(CamelModel):
+    """Source-specific search options for Qasa."""
+
+    max_listings: int | None = Field(default=None, ge=1)
+
+
 class ListingsSearchOptions(CamelModel):
     """Typed search options for listing fetch requests.
 
@@ -183,17 +235,22 @@ class ListingsSearchOptions(CamelModel):
     each source can expose its own nested option object.
     """
 
-    sources: list[ListingSources] = Field(default_factory=lambda: [
-        ListingSources.BOSTAD_STHLM,
-        ListingSources.HOMEQ,
-    ])
+    sources: list[ListingSources] = Field(
+        default_factory=lambda: [
+            ListingSources.BOSTAD_STHLM,
+            ListingSources.HOMEQ,
+            ListingSources.QASA,
+        ]
+    )
     bostadsthlm: BostadSthlmSearchOptions | None = None
     homeq: HomeQSearchOptions | None = None
+    qasa: QasaSearchOptions | None = None
 
     @field_validator("sources")
     @classmethod
     def _dedupe_sources(cls, sources: list[ListingSources]) -> list[ListingSources]:
         return list(dict.fromkeys(sources))
+
 
 ScrapeEventStatus = Literal["started", "progress", "complete", "failed"]
 
@@ -214,6 +271,7 @@ class AllListingsResponse(CamelModel):
     errors: list[ListingParseError]
     source_stats: list[ListingSourceStats] = Field(default_factory=list)
     updated_at: datetime | None = None
+
 
 class ListingsStreamEvent(CamelModel):
     event: ScrapeEventStatus

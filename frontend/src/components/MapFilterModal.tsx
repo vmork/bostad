@@ -68,7 +68,7 @@ export function MapFilterModal({
           ...districtFilter.state,
           included,
           allowNull: newAllowNull,
-          enabled: included.length > 0 || !newAllowNull,
+          enabled: included.length > 0 || newAllowNull,
         },
       };
       setFilters(filters.map((f) => (f.id === "districtId" ? updated : f)));

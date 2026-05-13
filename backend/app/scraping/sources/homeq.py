@@ -2,23 +2,28 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
 
 import httpx
 
 from app.models import (
+    AllocationMethod,
     ApartmentType,
     Coordinates,
-    DateRange,
     HomeQSearchOptions,
+    LeaseEndDateValue,
+    LeaseStartDateValue,
     Listing,
     ListingFeatures,
     ListingSources,
     ListingSourceStats,
     ListingsSearchOptions,
+    QueueStatus,
     Range,
     TenantRequirements,
+    TenureType,
 )
 from app.scraping.scrape_utils import (
     ListingParseException,
@@ -164,6 +169,52 @@ def _image_urls_from_media(items: Any) -> list[str] | None:
     ]
     urls = dedupe_keep_order(urls)
     return urls or None
+
+
+def _parse_homeq_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+
+    normalized = value.strip()
+    if not normalized or normalized == "1970-01-01" or normalized.lower() == "undefined":
+        return None
+
+    return parse_iso_datetime(normalized)
+
+
+def _parse_homeq_lease_start(value: Any) -> LeaseStartDateValue | None:
+    parsed = _parse_homeq_datetime(value)
+    return parsed.date().isoformat() if parsed is not None else None
+
+
+def _parse_homeq_lease_end(detail: dict[str, Any]) -> LeaseEndDateValue | None:
+    short_max = _parse_homeq_datetime(detail.get("short_lease_max_date"))
+    if short_max is not None:
+        return short_max.date().isoformat()
+
+    short_min = _parse_homeq_datetime(detail.get("short_lease_min_date"))
+    if short_min is not None:
+        return short_min.date().isoformat()
+
+    if detail.get("is_short_lease") is False:
+        return "indefinite"
+
+    return None
+
+
+def _parse_allocation_method(value: Any) -> AllocationMethod | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    normalized = value.strip().lower()
+    mapping = {
+        "queue_points": AllocationMethod.QUEUE_POINTS,
+        "random": AllocationMethod.RANDOM,
+        "lottery": AllocationMethod.RANDOM,
+        "first_come_first": AllocationMethod.APPLICATION_DATE,
+        "application_date": AllocationMethod.APPLICATION_DATE,
+    }
+    return mapping.get(normalized, AllocationMethod.UNKNOWN)
 
 
 class _FixedRequestGate:
@@ -434,6 +485,9 @@ class HomeQSource(ListingSource):
         area_sqm = _parse_float(detail.get("area"))
         num_rooms = _parse_float(detail.get("rooms"))
         rent = _parse_float(detail.get("rent"))
+        tenant_base_fee = _parse_float(detail.get("tenantBaseFee"))
+        if rent is not None and tenant_base_fee is not None:
+            rent += tenant_base_fee
         if (
             municipality is None
             or district is None
@@ -463,19 +517,13 @@ class HomeQSource(ListingSource):
         floorplan_url = (
             detail.get("plan_image") if isinstance(detail.get("plan_image"), str) else None
         )
-        rental_period = None
-        short_min = (
-            parse_iso_datetime(detail.get("short_lease_min_date", ""))
-            if detail.get("short_lease_min_date")
-            else None
+        lease_start_date = _parse_homeq_lease_start(
+            detail.get("date_access")
+        ) or _parse_homeq_lease_start(item.get("date_access"))
+        lease_end_date = _parse_homeq_lease_end(detail)
+        queue_position = QueueStatus(
+            allocation_method=_parse_allocation_method(detail.get("candidate_sorting_mode"))
         )
-        short_max = (
-            parse_iso_datetime(detail.get("short_lease_max_date", ""))
-            if detail.get("short_lease_max_date")
-            else None
-        )
-        if short_min is not None or short_max is not None:
-            rental_period = DateRange(min=short_min, max=short_max)
 
         return Listing(
             id=build_source_scoped_id(self.source_id, source_local_id),
@@ -494,6 +542,7 @@ class HomeQSource(ListingSource):
             area_sqm=area_sqm,
             num_rooms=num_rooms,
             apartment_type=_infer_apartment_type(detail),
+            tenure_type=TenureType.FIRST_HAND,
             features=ListingFeatures(
                 balcony=bool(detail.get("has_balcony")),
                 elevator=bool(detail.get("has_elevator")),
@@ -506,8 +555,10 @@ class HomeQSource(ListingSource):
                 has_floorplan=floorplan_url is not None,
             ),
             floor=_parse_float(detail.get("floor")),
-            rental_period=rental_period,
+            lease_start_date=lease_start_date,
+            lease_end_date=lease_end_date,
             coords=coords,
+            queue_position=queue_position,
             requirements=_build_requirements(detail),
             date_posted=parse_iso_datetime(str(detail.get("date_publish")))
             if detail.get("date_publish")
@@ -581,6 +632,11 @@ class HomeQSource(ListingSource):
                 f"Missing required HomeQ project location for {source_local_id}"
             )
 
+        queue_position = QueueStatus(
+            allocation_method=_parse_allocation_method(detail.get("candidate_sorting_mode"))
+        )
+        close_date = _parse_homeq_datetime(detail.get("close_date"))
+
         return Listing(
             id=build_source_scoped_id(self.source_id, source_local_id),
             source=self.source_id,
@@ -593,6 +649,7 @@ class HomeQSource(ListingSource):
             area_sqm=area_range.min,
             num_rooms=rooms_range.min,
             apartment_type="regular",
+            tenure_type=TenureType.FIRST_HAND,
             features=ListingFeatures(
                 new_production=True,
                 has_pictures=image_urls is not None and len(image_urls) > 0,
@@ -600,10 +657,19 @@ class HomeQSource(ListingSource):
                 has_floorplan=False,
             ),
             floor=floor_range.max if floor_range is not None else None,
+            lease_start_date=_parse_homeq_lease_start(detail.get("preliminary_move_in_date"))
+            or _parse_homeq_lease_start(item.get("date_access")),
+            lease_end_date=(
+                close_date.date().isoformat()
+                if detail.get("is_short_lease") and close_date is not None
+                else (None if detail.get("is_short_lease") else "indefinite")
+            ),
             coords=coords,
+            application_deadline_date=close_date,
             date_posted=parse_iso_datetime(str(detail.get("publish_date")))
             if detail.get("publish_date")
             else None,
+            queue_position=queue_position,
             image_urls=image_urls,
             free_text=_merge_text_parts(freetext_parts),
             num_apartments=parse_optional_int(item.get("active_ads")),

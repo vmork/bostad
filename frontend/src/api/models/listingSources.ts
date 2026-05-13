@@ -15,4 +15,5 @@ export type ListingSources = typeof ListingSources[keyof typeof ListingSources];
 export const ListingSources = {
   bostadsthlm: 'bostadsthlm',
   homeq: 'homeq',
+  qasa: 'qasa',
 } as const;

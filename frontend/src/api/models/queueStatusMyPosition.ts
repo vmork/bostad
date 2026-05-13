@@ -4,6 +4,5 @@
  * Bostad API
  * OpenAPI spec version: 0.1.0
  */
-import type { QueueStatus } from './queueStatus';
 
-export type ListingQueuePosition = QueueStatus | null;
+export type QueueStatusMyPosition = number | null;

@@ -1,4 +1,10 @@
-import type { Listing, ListingSources } from "../api/models";
+import type {
+  AllocationMethod,
+  Listing,
+  ListingFurnishing,
+  ListingSources,
+  ListingTenureType,
+} from "../api/models";
 import {
   createBooleanFilter,
   createRangeFilter,
@@ -10,14 +16,21 @@ import {
   type SortEntry,
 } from "./filterSort";
 import { sourceMetadataById } from "./sourceMetadata";
+import {
+  formatAllocationMethodLabel,
+  formatFurnishingLabel,
+  formatTenureTypeLabel,
+  toDateTimestamp,
+} from "./utils";
 
-type FilterGroups = "location" | "info" | "queuePosition" | "requirements" | "features";
+type FilterGroups = "location" | "info" | "timing" | "queuePosition" | "requirements" | "features";
 
 // Human-readable names for each filter group
 export const groupNames: Record<FilterGroups, string> = {
   location: "Location",
   info: "Basic Info",
-  queuePosition: "Queue Position",
+  timing: "Timing",
+  queuePosition: "Queue",
   requirements: "Requirements",
   features: "Features",
 };
@@ -38,8 +51,7 @@ export type SerializedSortEntry = {
 
 // Date-derived filters use day precision for filtering but timestamp ordering for stable sorting.
 function toTimestamp(value: Date | string | null | undefined) {
-  if (!value) return null;
-  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return toDateTimestamp(value);
 }
 
 function daysSince(value: Date | string | null | undefined) {
@@ -52,6 +64,27 @@ function descendingTimestamp(value: Date | string | null | undefined) {
   const timestamp = toTimestamp(value);
   if (timestamp == null) return null;
   return -timestamp;
+}
+
+function daysUntil(value: Date | string | null | undefined) {
+  const timestamp = toTimestamp(value);
+  if (timestamp == null) return null;
+  return Math.floor((timestamp - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function clampNonNegative(value: number | null) {
+  if (value == null) return null;
+  return Math.max(0, value);
+}
+
+function leaseStartDays(value: Listing["leaseStartDate"]) {
+  if (value === "asap") return 0;
+  return clampNonNegative(daysUntil(value));
+}
+
+function leaseStartSortValue(value: Listing["leaseStartDate"]) {
+  if (value === "asap") return Number.NEGATIVE_INFINITY;
+  return toTimestamp(value);
 }
 
 export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
@@ -145,6 +178,52 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     group: "info",
     showInSort: false,
   },
+  furnishing: {
+    type: "set",
+    id: "furnishing",
+    name: "Furnishing",
+    key: (ls) => ls.furnishing ?? null,
+    getOptionLabel: (value: ListingFurnishing) => formatFurnishingLabel(value) ?? String(value),
+    group: "info",
+    showInSort: false,
+    defaultState: { allowNull: true },
+  },
+  tenureType: {
+    type: "set",
+    id: "tenureType",
+    name: "Tenure",
+    key: (ls) => ls.tenureType ?? null,
+    getOptionLabel: (value: ListingTenureType) => formatTenureTypeLabel(value) ?? String(value),
+    group: "info",
+    showInSort: false,
+    defaultState: { allowNull: true },
+  },
+
+  // --- Timing
+  leaseStartDays: {
+    type: "range",
+    id: "leaseStartDays",
+    name: "Lease start in",
+    unit: "days",
+    key: (ls) => leaseStartDays(ls.leaseStartDate),
+    sortKey: (ls) => leaseStartSortValue(ls.leaseStartDate),
+    boundType: "upper",
+    stepSize: 1,
+    defaultState: { allowNull: false },
+    group: "timing",
+  },
+  applicationDeadlineDays: {
+    type: "range",
+    id: "applicationDeadlineDays",
+    name: "Deadline in",
+    unit: "days",
+    key: (ls) => daysUntil(ls.applicationDeadlineDate),
+    sortKey: (ls) => toTimestamp(ls.applicationDeadlineDate),
+    boundType: "upper",
+    stepSize: 1,
+    defaultState: { allowNull: true },
+    group: "timing",
+  },
 
   // --- Queue position
   queuePosition: {
@@ -155,6 +234,16 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "queuePosition",
+    defaultState: { allowNull: true },
+  },
+  allocationMethod: {
+    type: "set",
+    id: "allocationMethod",
+    name: "Allocation method",
+    key: (ls) => ls.queuePosition?.allocationMethod ?? null,
+    getOptionLabel: (value: AllocationMethod) => formatAllocationMethodLabel(value) ?? value,
+    group: "queuePosition",
+    showInSort: false,
     defaultState: { allowNull: true },
   },
   totalApplicants: {

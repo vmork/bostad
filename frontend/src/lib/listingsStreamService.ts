@@ -11,6 +11,7 @@ export const LISTINGS_CACHE_KEY = "bostad:listings-cache:all";
 export const DEFAULT_LISTING_SOURCES: ListingSources[] = [
   ListingSourceValues.bostadsthlm,
   ListingSourceValues.homeq,
+  ListingSourceValues.qasa,
 ];
 
 export interface CachedListings {
