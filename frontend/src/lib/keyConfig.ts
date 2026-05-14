@@ -9,11 +9,12 @@ import {
   createBooleanFilter,
   createRangeFilter,
   createSetFilter,
+  type ActiveSort,
   type Filter,
   type FilterDef,
   type FilterState,
   type KeyFn,
-  type SortEntry,
+  type SortOption,
 } from "./filterSort";
 import { sourceMetadataById } from "./sourceMetadata";
 import {
@@ -44,7 +45,7 @@ type ListingsKeyConfigEntry = FilterDef<Listing> & {
 
 export type SerializedFilterState = { id: string } & FilterState;
 
-export type SerializedSortEntry = {
+export type SerializedSortState = {
   id: string;
   ascending: boolean;
 };
@@ -468,15 +469,27 @@ export function hydrateFilters(
   return Object.values(keyConfig).map((def) => filtersById.get(def.id) ?? buildFilter(def, data));
 }
 
-export function buildSortEntries(): SortEntry<Listing>[] {
+export function buildSortOptions(): SortOption<Listing>[] {
   return Object.values(keyConfig)
     .filter((def) => def.showInSort !== false)
     .map((def) => ({
       id: def.id,
       name: def.name,
       key: def.sortKey ?? def.key,
-      ascending: true,
     }));
+}
+
+export function buildDefaultSort(): ActiveSort<Listing> {
+  const [defaultSort] = buildSortOptions();
+
+  if (!defaultSort) {
+    throw new Error("Expected at least one sortable listing field");
+  }
+
+  return {
+    ...defaultSort,
+    ascending: true,
+  };
 }
 
 function buildFilter(def: ListingsKeyConfigEntry, data: Listing[]): Filter<Listing> {
@@ -490,29 +503,29 @@ function buildFilter(def: ListingsKeyConfigEntry, data: Listing[]): Filter<Listi
   }
 }
 
-// Extract sort order and directions for local storage.
-export function serializeSortEntries(entries: SortEntry<Listing>[]): SerializedSortEntry[] {
-  return entries.map((entry) => ({ id: entry.id, ascending: entry.ascending }));
+// Extract the selected sort and direction for local storage.
+export function serializeSortState(sort: ActiveSort<Listing>): SerializedSortState {
+  return { id: sort.id, ascending: sort.ascending };
 }
 
-// Restore persisted sort order while ignoring removed keys and appending new ones.
-export function hydrateSortEntries(states: SerializedSortEntry[]): SortEntry<Listing>[] {
-  const defaultEntries = buildSortEntries();
-  const entriesById = new Map(defaultEntries.map((entry) => [entry.id, entry] as const));
-  const usedIds = new Set<string>();
-  const hydratedEntries: SortEntry<Listing>[] = [];
+// Restore persisted sort state while supporting the previous array-based multi-sort shape.
+export function hydrateSortState(
+  state: SerializedSortState | SerializedSortState[] | null | undefined,
+): ActiveSort<Listing> {
+  const defaultSort = buildDefaultSort();
+  const optionsById = new Map(buildSortOptions().map((option) => [option.id, option] as const));
+  const candidate = Array.isArray(state)
+    ? state.find((entry) => optionsById.has(entry.id))
+    : state && optionsById.has(state.id)
+      ? state
+      : null;
 
-  for (const state of states) {
-    const entry = entriesById.get(state.id);
-    if (!entry || usedIds.has(state.id)) continue;
-    hydratedEntries.push({ ...entry, ascending: state.ascending });
-    usedIds.add(state.id);
+  if (!candidate) {
+    return defaultSort;
   }
 
-  for (const entry of defaultEntries) {
-    if (usedIds.has(entry.id)) continue;
-    hydratedEntries.push(entry);
-  }
-
-  return hydratedEntries;
+  return {
+    ...optionsById.get(candidate.id)!,
+    ascending: candidate.ascending,
+  };
 }

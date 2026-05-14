@@ -78,9 +78,10 @@ const ListingUI = memo(function ListingUI({
     lg.features?.bathroom === false ? "No bathroom" : null,
   ].filter((value): value is string => value !== null);
 
-  const infoExtras = [formatTenureTypeLabel(lg.tenureType), formatFurnishingLabel(lg.furnishing)].filter(
-    (value): value is string => value != null && value.trim().length > 0,
-  );
+  const infoExtras = [
+    formatTenureTypeLabel(lg.tenureType),
+    formatFurnishingLabel(lg.furnishing),
+  ].filter((value): value is string => value != null && value.trim().length > 0);
 
   // Only show appliance extras when they are explicitly present.
   const bonusFeatures = [

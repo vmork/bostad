@@ -16,14 +16,14 @@ import {
   type Filter,
 } from "./lib/filterSort";
 import {
-  buildSortEntries,
+  buildSortOptions,
   hydrateFilters,
-  hydrateSortEntries,
+  hydrateSortState,
   serializeFilters,
-  serializeSortEntries,
+  serializeSortState,
   syncFiltersWithData,
   type SerializedFilterState,
-  type SerializedSortEntry,
+  type SerializedSortState,
 } from "./lib/keyConfig";
 import { mergeSourceMetadata } from "./lib/sourceMetadata";
 import { cn, formatUpdatedAt } from "./lib/utils";
@@ -133,23 +133,22 @@ export default function App() {
     LISTINGS_FILTERS_STORAGE_KEY,
     [],
   );
-  const [storedSortStates, setStoredSortStates] = useLocalStorage<SerializedSortEntry[]>(
-    LISTINGS_SORT_STORAGE_KEY,
-    [],
-  );
+  const [storedSortState, setStoredSortState] = useLocalStorage<
+    SerializedSortState | SerializedSortState[] | null
+  >(LISTINGS_SORT_STORAGE_KEY, null);
 
   const numApartments = listings
     .map((listing) => listing.numApartments ?? 1)
     .reduce((total, count) => total + count, 0);
   const apartmentsLabel = `(${numApartments} apts.)`;
 
-  const _defaultSortEntries = useMemo(() => buildSortEntries(), []);
+  const sortOptions = useMemo(() => buildSortOptions(), []);
   const [filters, setFilters] = useState(() => hydrateFilters(storedFilterStates, listings));
-  const [sortEntries, setSortEntries] = useState(() => hydrateSortEntries(storedSortStates));
+  const [selectedSort, setSelectedSort] = useState(() => hydrateSortState(storedSortState));
   const [mapOpen, setMapOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const deferredFilters = useDeferredValue(filters);
-  const deferredSortEntries = useDeferredValue(sortEntries);
+  const deferredSelectedSort = useDeferredValue(selectedSort);
 
   // Check if the location filter is active (has selected districts)
   const locationFilterActive = filters.some((f) => f.id === "districtId" && f.state.enabled);
@@ -163,8 +162,8 @@ export default function App() {
   }, [filters, setStoredFilterStates]);
 
   useEffect(() => {
-    setStoredSortStates(serializeSortEntries(sortEntries));
-  }, [sortEntries, setStoredSortStates]);
+    setStoredSortState(serializeSortState(selectedSort));
+  }, [selectedSort, setStoredSortState]);
 
   const contextualFilters = useMemo(() => {
     if (!filtersOpen) return null;
@@ -178,11 +177,11 @@ export default function App() {
 
   const displayedListings = useMemo(() => {
     const filtered = applyFiltersToList(listings, deferredFilters);
-    return sortList(filtered, deferredSortEntries);
-  }, [deferredFilters, deferredSortEntries, listings]);
+    return sortList(filtered, deferredSelectedSort);
+  }, [deferredFilters, deferredSelectedSort, listings]);
 
   const displayedListingsAreStale =
-    deferredFilters !== filters || deferredSortEntries !== sortEntries;
+    deferredFilters !== filters || deferredSelectedSort !== selectedSort;
   const sourceNameById = useMemo(
     () => mergeSourceMetadata(listingsQuery.sourceStats),
     [listingsQuery.sourceStats],
@@ -274,7 +273,7 @@ export default function App() {
         {/* Controls + list */}
         <div className="space-y-2">
           {/* Filtering and sorting controls */}
-          <div className="flex flex-wrap gap-2 md:gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             {listingsQuery.hasCachedData && (
               <>
                 <FilterDropdown
@@ -293,11 +292,13 @@ export default function App() {
                   <MapIcon className="w-4 h-4 mr-1" />
                   Map
                 </Button>
-                <SortDropdown
-                  sortEntries={sortEntries}
-                  setSortEntries={setSortEntries}
-                  defaultSortEntries={_defaultSortEntries}
-                />
+                <div className="ml-auto">
+                  <SortDropdown
+                    sortOptions={sortOptions}
+                    selectedSort={selectedSort}
+                    setSelectedSort={setSelectedSort}
+                  />
+                </div>
               </>
             )}
           </div>

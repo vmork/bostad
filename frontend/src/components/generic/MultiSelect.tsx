@@ -50,7 +50,10 @@ export function MultiSelect<T>({
           const selected = included?.some((x) => keyFn(x) === keyFn(item)) ?? false;
           return (
             <button key={keyFn(item)} type="button" onClick={() => toggleItem(item)}>
-              <Pill type={selected ? "primary" : "default"} className="cursor-pointer text-xs text-gs-3 p-1">
+              <Pill
+                type={selected ? "primary" : "default"}
+                className="cursor-pointer text-xs text-gs-3 p-1"
+              >
                 {displayFn(item)}
               </Pill>
             </button>

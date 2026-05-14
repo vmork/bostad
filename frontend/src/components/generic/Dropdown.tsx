@@ -447,7 +447,9 @@ function DropdownContent({ children, className, preferredSide }: DropdownContent
               <XIcon className="h-4 w-4" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y">
+            {children}
+          </div>
         </div>
       </Modal>
     );

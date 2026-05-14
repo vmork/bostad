@@ -199,12 +199,15 @@ export function applyFiltersToList<T>(
 
 // ---- Sorting ----
 
-export type SortEntry<T, V = any> = {
+export type SortOption<T, V = any> = {
   id: string;
   name: string;
   key: KeyFn<T, V>;
-  ascending: boolean;
   cmpFunc?: (a: V, b: V) => number;
+};
+
+export type ActiveSort<T, V = any> = SortOption<T, V> & {
+  ascending: boolean;
 };
 
 function defaultSortCmp<V>(left: V, right: V) {
@@ -214,19 +217,21 @@ function defaultSortCmp<V>(left: V, right: V) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-export function sortList<T, V = any>(xs: T[], sorts: SortEntry<T, V>[]) {
+export function sortList<T, V = any>(xs: T[], sort: ActiveSort<T, V> | null | undefined) {
+  if (!sort) {
+    return xs;
+  }
+
   // Precompute sort keys once so time-based accessors stay stable for the full sort pass.
   const decorated = xs.map((item, originalIndex) => ({
     item,
     originalIndex,
-    values: sorts.map((sort) => keyLookup(item, sort.key)),
+    value: keyLookup(item, sort.key),
   }));
 
   decorated.sort((left, right) => {
-    for (const [index, { ascending, cmpFunc }] of sorts.entries()) {
-      const cmp = (cmpFunc ?? defaultSortCmp)(left.values[index], right.values[index]);
-      if (cmp !== 0) return ascending ? cmp : -cmp;
-    }
+    const cmp = (sort.cmpFunc ?? defaultSortCmp)(left.value, right.value);
+    if (cmp !== 0) return sort.ascending ? cmp : -cmp;
     return left.originalIndex - right.originalIndex;
   });
 
