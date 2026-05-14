@@ -42,14 +42,17 @@ function mergeFilterStats(filters: Filter<Listing>[], filtersWithStats: Filter<L
 
   return filters.map((filter) => {
     const nextFilter = filtersById.get(filter.id);
-    if (!nextFilter || nextFilter.type !== filter.type) return filter;
+    if (!nextFilter) return filter;
 
     switch (filter.type) {
       case "range":
+        if (nextFilter.type !== "range") return filter;
         return { ...filter, stats: nextFilter.stats };
       case "set":
+        if (nextFilter.type !== "set") return filter;
         return { ...filter, stats: nextFilter.stats };
       case "boolean":
+        if (nextFilter.type !== "boolean") return filter;
         return { ...filter, stats: nextFilter.stats };
     }
   });
@@ -178,7 +181,8 @@ export default function App() {
     return sortList(filtered, deferredSortEntries);
   }, [deferredFilters, deferredSortEntries, listings]);
 
-  const displayedListingsAreStale = deferredFilters !== filters || deferredSortEntries !== sortEntries;
+  const displayedListingsAreStale =
+    deferredFilters !== filters || deferredSortEntries !== sortEntries;
   const sourceNameById = useMemo(
     () => mergeSourceMetadata(listingsQuery.sourceStats),
     [listingsQuery.sourceStats],

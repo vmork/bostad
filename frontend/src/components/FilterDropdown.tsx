@@ -21,9 +21,22 @@ function replaceFilter(
   setFilters: (filters: Filter<Listing>[]) => void,
   updatedFilter: Filter<Listing>,
 ) {
-  const newFilters = filters.map((filter) =>
-    filter.id === updatedFilter.id ? { ...updatedFilter, stats: filter.stats } : filter,
-  );
+  const newFilters = filters.map((filter) => {
+    if (filter.id !== updatedFilter.id) return filter;
+
+    switch (filter.type) {
+      case "range":
+        if (updatedFilter.type !== "range") return filter;
+        return { ...updatedFilter, stats: filter.stats };
+      case "set":
+        if (updatedFilter.type !== "set") return filter;
+        return { ...updatedFilter, stats: filter.stats };
+      case "boolean":
+        if (updatedFilter.type !== "boolean") return filter;
+        return { ...updatedFilter, stats: filter.stats };
+    }
+  });
+
   setFilters(newFilters);
 }
 
@@ -35,11 +48,9 @@ function getFilterInfoString(filter: Filter<Listing>): string {
     if (!isFinite(filter.stats.absMin)) return "No data";
     const unit = filter.def.unit ? ` ${filter.def.unit}` : "";
     return `${filter.stats.absMin} to ${filter.stats.absMax}${unit}${nullSuffix}`;
-
   } else if (filter.type === "set") {
     if (filter.stats.allOptions.length === 0) return "No data";
     return `${filter.stats.allOptions.length} options${nullSuffix}`;
-
   } else if (filter.type === "boolean") {
     const totalCount = filter.stats.trueCount + filter.stats.falseCount + filter.stats.nullCount;
     return `${filter.stats.trueCount}/${totalCount}${nullSuffix}`;
@@ -182,7 +193,7 @@ function SetFilterRow({
   const numSelected = filter.state.included.length;
   const firstSelectedLabel =
     numSelected > 0
-      ? filter.def.getOptionLabel?.(filter.state.included[0]) ?? String(filter.state.included[0])
+      ? (filter.def.getOptionLabel?.(filter.state.included[0]) ?? String(filter.state.included[0]))
       : null;
 
   return (
@@ -268,7 +279,6 @@ function BooleanFilterRow({
     >
       <FilterRowLeftSide filter={filter} onFilterChange={onFilterChange} />
       <div className="flex items-center gap-2">
-        
         {/* "include unknown" toggle — only visible when filter is active and nulls exist */}
         {filter.state.enabled && filter.stats.nullCount > 0 && (
           <button
@@ -354,11 +364,7 @@ export function FilterDropdown({
 
   return (
     <div className="flex items-center gap-0">
-      <Dropdown.Root
-        triggerMode="hover"
-        mobileModalTitle="Filters"
-        onOpenChange={onOpenChange}
-      >
+      <Dropdown.Root triggerMode="hover" mobileModalTitle="Filters" onOpenChange={onOpenChange}>
         <Dropdown.Trigger>
           <Button
             size="large"

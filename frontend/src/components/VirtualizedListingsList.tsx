@@ -60,7 +60,9 @@ export const VirtualizedListingsList = memo(function VirtualizedListingsList({
             }}
           >
             <div
-              style={{ paddingBottom: virtualItem.index === listings.length - 1 ? 0 : LIST_ITEM_SPACING_PX }}
+              style={{
+                paddingBottom: virtualItem.index === listings.length - 1 ? 0 : LIST_ITEM_SPACING_PX,
+              }}
             >
               <ListingUI
                 listing={listing}

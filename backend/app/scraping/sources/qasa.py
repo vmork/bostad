@@ -432,6 +432,7 @@ class QasaSource(ListingSource):
         batch_ids: list[str],
     ) -> dict[str, Any]:
         query, variables = _build_detail_batch_query(batch_ids)
+        response: httpx.Response | None = None
 
         for attempt in range(1, DETAIL_BATCH_MAX_ATTEMPTS + 1):
             try:
@@ -466,6 +467,9 @@ class QasaSource(ListingSource):
                 wait_seconds,
             )
             await asyncio.sleep(wait_seconds)
+
+        if response is None:
+            raise ListingParseException(f"Failed to fetch {QASA_GRAPHQL_URL}: no response")
 
         try:
             response.raise_for_status()
