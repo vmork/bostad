@@ -237,8 +237,6 @@ def _build_features(detail: dict[str, Any], image_urls: list[str] | None) -> Lis
     traits = _trait_lookup(detail.get("traits"))
     kitchen = any(trait in traits for trait in ["kitchenette", "stove", "oven"])
     bathroom = any(trait in traits for trait in ["shower", "toilet", "bathtub"])
-    raw_description = detail.get("description")
-    description = raw_description if isinstance(raw_description, str) else None
     return ListingFeatures(
         balcony=True if "balcony" in traits else None,
         elevator=True if "elevator" in traits else None,
@@ -247,22 +245,10 @@ def _build_features(detail: dict[str, Any], image_urls: list[str] | None) -> Lis
         dishwasher="dish_washer" in traits,
         washing_machine="washing_machine" in traits,
         dryer="dryer" in traits or "drier" in traits,
-        has_viewing=_infer_has_viewing(description),
+        has_viewing=True,
         has_pictures=bool(image_urls),
         num_pictures=len(image_urls or []),
     )
-
-
-def _infer_has_viewing(description: str | None) -> bool | None:
-    if description is None:
-        return None
-
-    normalized = description.lower()
-    if any(marker in normalized for marker in ["ingen visning", "no viewing"]):
-        return False
-    if any(marker in normalized for marker in ["visning", "viewing", "showing"]):
-        return True
-    return None
 
 
 def _build_detail_batch_query(batch_ids: list[str]) -> tuple[str, dict[str, str]]:
