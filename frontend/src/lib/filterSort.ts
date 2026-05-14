@@ -45,13 +45,11 @@ export type RangeFilterState = {
   enabled: boolean;
   min: number | null; // null treated as -inf
   max: number | null; // null treated as +inf
-  allowNull: boolean; // if true, null data values pass the filter
 };
 
 export type SetFilterState<V = any> = {
   enabled: boolean;
   included: V[]; // empty = include all (filter disabled by convention)
-  allowNull: boolean; // if true, null data values pass the filter
 };
 
 export type BooleanFilterState = {
@@ -122,7 +120,6 @@ export function resetFilter<T>(filter: Filter<T>): Filter<T> {
           enabled: false,
           min: null,
           max: null,
-          allowNull: false,
           ...filter.def.defaultState,
         },
       };
@@ -132,7 +129,6 @@ export function resetFilter<T>(filter: Filter<T>): Filter<T> {
         state: {
           enabled: false,
           included: [],
-          allowNull: false,
           ...filter.def.defaultState,
         },
       };
@@ -153,7 +149,7 @@ export function resetFilter<T>(filter: Filter<T>): Filter<T> {
 
 function _filterItemByRange<T>(x: T, filter: RangeFilter<T>) {
   const value = keyLookup(x, filter.def.key);
-  if (value == null) return filter.state.allowNull;
+  if (value == null) return true;
   const min = filter.def.boundType === "upper" ? -Infinity : (filter.state.min ?? -Infinity);
   const max = filter.def.boundType === "lower" ? Infinity : (filter.state.max ?? Infinity);
   return min <= value && value <= max;
@@ -161,7 +157,7 @@ function _filterItemByRange<T>(x: T, filter: RangeFilter<T>) {
 
 function _filterItemBySet<T, V>(x: T, filter: SetFilter<T, V>) {
   const value = keyLookup(x, filter.def.key);
-  if (value == null) return filter.state.allowNull;
+  if (value == null) return true;
   if (filter.state.included.length === 0) return true;
   return filter.state.included.includes(value as V);
 }
@@ -305,17 +301,16 @@ export function createRangeFilter<T>(
   data: T[],
   state?: Partial<RangeFilterState>,
 ): RangeFilter<T> {
+  const defaultState = def.defaultState;
+
   return {
     type: "range",
     id: def.id,
     def,
     state: {
-      enabled: false,
-      min: null,
-      max: null,
-      allowNull: false,
-      ...def.defaultState,
-      ...state,
+      enabled: state?.enabled ?? defaultState?.enabled ?? false,
+      min: state?.min ?? defaultState?.min ?? null,
+      max: state?.max ?? defaultState?.max ?? null,
     },
     stats: _computeRangeStats(def, data),
   };
@@ -327,16 +322,15 @@ export function createSetFilter<T, V = any>(
   state?: Partial<SetFilterState<V>>,
   allOptionsData?: T[],
 ): SetFilter<T, V> {
+  const defaultState = def.defaultState;
+
   return {
     type: "set",
     id: def.id,
     def,
     state: {
-      enabled: false,
-      included: [],
-      allowNull: false,
-      ...def.defaultState,
-      ...state,
+      enabled: state?.enabled ?? defaultState?.enabled ?? false,
+      included: state?.included ?? defaultState?.included ?? [],
     },
     stats: _computeSetStats(def, data, allOptionsData),
   };
@@ -347,16 +341,16 @@ export function createBooleanFilter<T>(
   data: T[],
   state?: Partial<BooleanFilterState>,
 ): BooleanFilter<T> {
+  const defaultState = def.defaultState;
+
   return {
     type: "boolean",
     id: def.id,
     def,
     state: {
-      enabled: false,
-      value: true,
-      allowNull: false,
-      ...def.defaultState,
-      ...state,
+      enabled: state?.enabled ?? defaultState?.enabled ?? false,
+      value: state?.value ?? defaultState?.value ?? true,
+      allowNull: state?.allowNull ?? defaultState?.allowNull ?? false,
     },
     stats: _computeBooleanStats(def, data),
   };

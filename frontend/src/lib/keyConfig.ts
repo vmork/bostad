@@ -101,7 +101,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     group: "location",
     showInSort: false,
     showInFilter: false,
-    defaultState: { allowNull: false },
   },
 
   // --- Basic info
@@ -131,7 +130,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     getOptionLabel: (value: ListingTenureType) => formatTenureTypeLabel(value) ?? String(value),
     group: "info",
     showInSort: false,
-    defaultState: { allowNull: true },
   },
   areaSqm: {
     type: "range",
@@ -178,7 +176,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     getOptionLabel: (value: ListingFurnishing) => formatFurnishingLabel(value) ?? String(value),
     group: "info",
     showInSort: false,
-    defaultState: { allowNull: true },
   },
   source: {
     type: "set",
@@ -200,7 +197,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     sortKey: (ls) => leaseStartSortValue(ls.leaseStartDate),
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: false },
     group: "timing",
   },
   leaseEndDays: {
@@ -212,7 +208,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     sortKey: (ls) => toTimestamp(ls.leaseEndDate),
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: false },
     group: "timing",
   },
   postAgeDays: {
@@ -225,7 +220,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     sortKey: (ls) => descendingTimestamp(ls.datePosted),
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: true },
     group: "timing",
   },
   applicationDeadlineDays: {
@@ -237,7 +231,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     sortKey: (ls) => toTimestamp(ls.applicationDeadlineDate),
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: true },
     group: "timing",
   },
 
@@ -250,7 +243,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     getOptionLabel: (value: AllocationMethod) => formatAllocationMethodLabel(value) ?? value,
     group: "allocationInfo",
     showInSort: false,
-    defaultState: { allowNull: true },
   },
   allocationInfo: {
     type: "range",
@@ -260,7 +252,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "allocationInfo",
-    defaultState: { allowNull: true },
   },
   totalApplicants: {
     type: "range",
@@ -270,7 +261,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "allocationInfo",
-    defaultState: { allowNull: true },
   },
   longestQueueTimeDays: {
     type: "range",
@@ -282,7 +272,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     boundType: "both",
     stepSize: 1,
     group: "allocationInfo",
-    defaultState: { allowNull: true },
   },
 
   // --- Requirements
@@ -294,7 +283,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     key: (ls) => ls.requirements?.incomeRange?.min ?? null,
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: true }, // missing likely implies no limit
     group: "requirements",
   },
   incomeMax: {
@@ -305,7 +293,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     key: (ls) => ls.requirements?.incomeRange?.max ?? null,
     boundType: "lower",
     stepSize: 1,
-    defaultState: { allowNull: true }, // missing likely implies no limit
     group: "requirements",
   },
   ageMin: {
@@ -315,7 +302,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     key: (ls) => ls.requirements?.ageRange?.min ?? null,
     boundType: "upper",
     stepSize: 1,
-    defaultState: { allowNull: true },
     group: "requirements",
   },
   ageMax: {
@@ -325,7 +311,6 @@ export const keyConfig: Record<string, ListingsKeyConfigEntry> = {
     key: (ls) => ls.requirements?.ageRange?.max ?? null,
     boundType: "lower",
     stepSize: 1,
-    defaultState: { allowNull: true },
     group: "requirements",
   },
 

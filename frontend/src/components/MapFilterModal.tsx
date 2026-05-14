@@ -75,7 +75,6 @@ export function MapFilterModal({
         state: {
           ...districtFilter.state,
           included,
-          allowNull: false,
           enabled: included.length > 0,
         },
       };
